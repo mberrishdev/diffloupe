@@ -12,27 +12,31 @@ Launch the diffloupe server so the user can review their git changes in a browse
 
 ### 1. Launch diffloupe
 
-Run `diffloupe` in the background. By default it shows all working tree changes (staged + unstaged + untracked).
+Run `diffloupe` in the repository. By default it shows all working tree changes (staged + unstaged + untracked).
 
 ```bash
 diffloupe
 ```
 
-Common variations — use these when the context calls for it:
+This adds the repository to diffloupe's background server (starting it if needed), opens the browser and returns straight away, so a normal foreground Bash call is fine. Note the URL it prints, e.g. `http://127.0.0.1:4747/?repo=my-app`: the port and repo id are needed by `/diffloupe-finish-review`.
+
+To review several repositories in one session:
+
+```bash
+diffloupe ../api ../web
+```
+
+The user can also add or remove repositories from the repo menu in the browser, so you don't need to rerun diffloupe to review another repo.
+
+To review something other than the working tree, pass git diff arguments after `--`. Anything after `--` is passed directly to `git diff`:
 
 ```bash
 diffloupe -- --staged          # Only staged changes
 diffloupe -- HEAD~3            # Last 3 commits
 diffloupe -- main..HEAD        # Current branch vs main
-diffloupe -p 8080             # Custom port (default: random available port)
-diffloupe ../api ../web       # Several repositories in one session (repo switcher in the UI)
 ```
 
-The user can also add or remove repositories from the repo menu in the browser, so you don't need to restart diffloupe to review another repo.
-
-Anything after `--` is passed directly to `git diff`, so any valid git diff arguments work.
-
-**Important:** Run diffloupe in the background using the Bash tool with `run_in_background: true`, so the server stays alive while the user reviews.
+**Important:** with git diff arguments, diffloupe runs a separate server in the foreground instead (on a random port, printed as `diffloupe server running at http://127.0.0.1:<port>`). Run that form in the background using the Bash tool with `run_in_background: true`, so the server stays alive while the user reviews.
 
 ### 2. Tell the user
 

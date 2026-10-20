@@ -8,6 +8,7 @@ What diffloupe adds on top of diffx:
 
 - **[Code navigation](#code-navigation):** ⌘/Ctrl-click any name in the diff to see its definition, implementations and references, with exact results for C# and TypeScript/JavaScript
 - **[Multiple repositories](#multiple-repositories):** review several repos or git worktrees in one session and switch between them from the toolbar
+- **[Background server](#background-server):** `diffloupe` returns your terminal straight away and every repo lands in one session at `http://127.0.0.1:4747`, optionally started at login
 
 ![screenshot](https://raw.githubusercontent.com/mberrishdev/diffloupe/main/screenshot.png)
 
@@ -25,15 +26,28 @@ Run in any git repository:
 diffloupe
 ```
 
-This starts a local server and opens your browser with a diff review UI.
+This opens your browser with a diff review UI for the repository, at `http://127.0.0.1:4747`. Your terminal is free again straight away: diffloupe keeps a server running in the background. Run `diffloupe` in another repository and it is added to the same session, so every repo you're reviewing is in one browser tab at one URL.
 
 ### Options
 
 ```
 diffloupe [options] [<repo-path>...] [-- <git-diff-args>]
+diffloupe <command>
+
+Commands:
+  start              Start the background server
+  stop               Stop the background server
+  restart            Restart the background server (e.g. after upgrading)
+  status             Show whether the background server is running and its repos
+  service install    Start the background server automatically when you log in
+  service uninstall  Stop starting it at login
+  service status     Show whether the login service is installed
 
 Options:
-  -p, --port <port>   Server port (default: random available port)
+  -p, --port <port>   Port for the background server (default: 4747).
+                      With --foreground: port for this session (default: random)
+  -f, --foreground    Run a separate server in this terminal until Ctrl+C.
+                      Implied by --host and by git diff args
   --host <host>       Host to bind to (default: 127.0.0.1). Use 0.0.0.0 to
                       expose the server on your local network
   --no-open           Don't auto-open browser
@@ -42,13 +56,41 @@ Options:
 
 Examples:
   diffloupe                          # Review working tree changes
-  diffloupe -p 8080                  # Use custom port
+  diffloupe ../api ../web            # Add several repositories to the session
   diffloupe -- HEAD~3                # Diff against 3 commits ago
   diffloupe -- main..HEAD            # Diff between branches
   diffloupe -- --cached -- src/      # Staged changes in src/
-  diffloupe ../api ../web            # Review several repositories in one session
   diffloupe ../api ../web -- HEAD~1  # git diff args apply to every repository
 ```
+
+### Background server
+
+The first `diffloupe` you run starts the background server; later runs reuse it.
+
+```bash
+diffloupe status    # Is it running, on which URL, and which repos are open
+diffloupe stop      # Stop it
+diffloupe start     # Start it without adding a repo
+diffloupe restart   # Restart it, e.g. after upgrading diffloupe; open repos are reopened
+```
+
+To have it running all the time, even right after you log in, install it as a login service (a LaunchAgent on macOS, a systemd user service on Linux):
+
+```bash
+diffloupe service install      # Starts now and at every login, restarts after a crash
+diffloupe service uninstall    # Removes it again
+```
+
+With the service installed, `http://127.0.0.1:4747` always works: bookmark it and add repos from the repo menu in the browser. `diffloupe stop` stops the service until you next log in or run `diffloupe`.
+
+Things to know:
+
+- **Port:** the server uses port 4747. Use `diffloupe start -p <port>` (or `diffloupe service install -p <port>`) to pick another. If 4747 is taken when diffloupe starts the server for you, it falls back to a free port and prints the URL.
+- **Git diff arguments** such as `-- HEAD~3`, and `--host`, apply to a whole session, so they run a separate server in your terminal instead, like earlier versions. Use `--foreground` to get that behaviour without them.
+- **Comments** live in the server's memory. They survive closing the browser, but not `diffloupe stop` or `restart`.
+- **Language servers** for code navigation are shut down after 30 minutes without use and start again on your next ⌘-click.
+- **Upgrading:** after `npm install -g diffloupe`, run `diffloupe restart` so the background server runs the new version. `diffloupe` reminds you if they differ.
+- **Logs** are written to `~/.config/diffloupe/server.log`.
 
 ### Code navigation
 
@@ -101,7 +143,7 @@ Review several repos (or git worktrees) in one session, which is handy when codi
 - repos you reviewed recently (remembered in `~/.config/diffloupe/recent-repos.json`)
 - repos next to the ones you have open, or inside the folder you launched diffloupe from
 
-Repos with uncommitted changes are listed first and marked with a green dot. You can also type or paste any path, such as `~/code/api`. Running `diffloupe` outside a git repository opens the picker directly, and you can still pass repo paths on the command line (`diffloupe ../api ../web`).
+Repos with uncommitted changes are listed first and marked with a green dot. You can also type or paste any path, such as `~/code/api`. Running `diffloupe` in another repository adds it to the session, running it outside a git repository opens the picker directly, and you can still pass repo paths on the command line (`diffloupe ../api ../web`).
 
 Adding and removing repos from the UI is only available when diffloupe listens on localhost (the default). With `--host 0.0.0.0` the repo list is fixed to the paths given at startup, so other machines can't open arbitrary repos on yours.
 
@@ -128,6 +170,7 @@ The selected repo is kept in the URL (`?repo=<id>`), so you can open one browser
 - **Custom diff commands** — Pass any `git diff` arguments after `--`
 - **Code navigation** — ⌘/Ctrl-click any symbol to see its definition, implementations and references, with a file preview; exact results when a language server is installed
 - **Multiple repositories** — Add, switch between and remove repos or worktrees from the toolbar, with suggestions for nearby, worktree and recent repos
+- **Background server** — One server at a fixed URL that every `diffloupe` run adds its repo to, optionally started at login
 - **EditorConfig support** — Respects `.editorconfig` for per-file tab size
 - **Persistent settings** — Your preferences are saved across sessions
 

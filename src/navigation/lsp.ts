@@ -102,6 +102,16 @@ export class LspManager {
   private clients = new Map<string, Promise<LspClient>>()
   private live = new Map<string, LspClient>()
   private startErrors = new Map<string, string>()
+  private lastUsed = new Map<string, number>()
+
+  /**
+   * With `idleTimeoutMs`, servers that haven't been used for that long are shut
+   * down, so a long-running background server doesn't hold on to them. The next
+   * lookup starts the server again.
+   */
+  constructor(private idleTimeoutMs?: number) {
+    if (idleTimeoutMs) setInterval(() => this.disposeIdle(), Math.min(idleTimeoutMs, 60_000)).unref()
+  }
 
   /** Lifecycle of a repo's server, for the setup UI. */
   state(root: string, spec: ServerSpec): ServerState {
@@ -185,13 +195,24 @@ export class LspManager {
   }
 
   disposeRoot(root: string) {
-    for (const [key, client] of this.clients) {
-      if (key.startsWith(`${root}\0`)) {
-        this.clients.delete(key)
-        this.live.delete(key)
-        client.then((c) => c.dispose()).catch(() => {})
-      }
+    for (const key of this.clients.keys()) {
+      if (key.startsWith(`${root}\0`)) this.dispose(key)
     }
+  }
+
+  private disposeIdle() {
+    const cutoff = Date.now() - this.idleTimeoutMs!
+    for (const key of this.clients.keys()) {
+      if ((this.lastUsed.get(key) ?? 0) < cutoff) this.dispose(key)
+    }
+  }
+
+  private dispose(key: string) {
+    const client = this.clients.get(key)
+    this.clients.delete(key)
+    this.live.delete(key)
+    this.lastUsed.delete(key)
+    client?.then((c) => c.dispose()).catch(() => {})
   }
 
   /** Kills every server synchronously; safe to call from a process 'exit' handler. */
@@ -199,10 +220,12 @@ export class LspManager {
     for (const client of this.live.values()) client.kill()
     this.live.clear()
     this.clients.clear()
+    this.lastUsed.clear()
   }
 
   private getClient(root: string, spec: ServerSpec, executable: string): Promise<LspClient> {
     const key = `${root}\0${spec.name}`
+    this.lastUsed.set(key, Date.now())
     const existing = this.clients.get(key)
     if (existing) {
       return existing.then((client) => {

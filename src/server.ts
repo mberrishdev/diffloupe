@@ -112,11 +112,13 @@ export interface AppOptions {
   launchDir: string
   /** Language servers for exact code navigation; text search is used without them. */
   lsp?: LspManager
+  /** Package version, reported by /api/health. */
+  version?: string
 }
 
 const MAX_SOURCE_BYTES = 2 * 1024 * 1024
 
-export function createApp({ clientDir, repos, customDiffArgs, commentStore, canManageRepos, launchDir, lsp }: AppOptions) {
+export function createApp({ clientDir, repos, customDiffArgs, commentStore, canManageRepos, launchDir, lsp, version }: AppOptions) {
   const app = new Hono()
   const isCustomMode = !!customDiffArgs
   const store = commentStore ?? new InMemoryCommentStore()
@@ -139,6 +141,9 @@ export function createApp({ clientDir, repos, customDiffArgs, commentStore, canM
     isCustomMode ? getCustomGitDiff(repo.cwd, customDiffArgs) : getGitDiff(repo.root, options)
 
   const repoInfo = (r: Repo) => ({ id: r.id, name: r.name, root: r.root, branch: getBranchName(r.root) })
+
+  // Lets the CLI confirm that the process on a port is a diffloupe server.
+  app.get('/api/health', (c) => c.json({ app: 'diffloupe', version, pid: process.pid }))
 
   app.get('/api/repos', (c) => {
     return c.json({ repos: repos.list().map(repoInfo), canManage: canManageRepos })
@@ -469,7 +474,7 @@ export function createApp({ clientDir, repos, customDiffArgs, commentStore, canM
 export function startServer(options: AppOptions & { port: number; host: string }): Promise<{ port: number }> {
   const app = createApp(options)
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const server = serve({
       fetch: app.fetch,
       port: options.port,
@@ -477,5 +482,7 @@ export function startServer(options: AppOptions & { port: number; host: string }
     }, (info) => {
       resolve({ port: info.port })
     })
+    // e.g. EADDRINUSE when the port is taken
+    server.on('error', reject)
   })
 }

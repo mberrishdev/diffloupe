@@ -12,13 +12,13 @@ Fetch all review comments from the running diffloupe server, apply the requested
 
 ### 1. Fetch comments from the API
 
-The diffloupe server is running locally. Check the earlier conversation context for the port diffloupe reported on startup. Fetch all comments:
+The diffloupe server is running locally. Check the earlier conversation context for the URL diffloupe printed when the review started. If you can't find it, run `diffloupe status`, which prints the background server's URL (by default `http://127.0.0.1:4747`). Fetch all comments:
 
 ```bash
-curl -s http://localhost:<port>/api/comments
+curl -s http://127.0.0.1:<port>/api/comments
 ```
 
-Replace `<port>` with the port number diffloupe reported on startup (visible in the server log output).
+Replace `<port>` with the port from that URL.
 
 The response is a JSON array of comment objects:
 
@@ -45,7 +45,7 @@ The response is a JSON array of comment objects:
 diffloupe can review several repositories at once. If the comments span more than one `repoPath`, only process the ones for the repository you are working in, unless the user asked you to handle all of them. You can also filter on the server with `?repo=<repoId>`:
 
 ```bash
-curl -s "http://localhost:<port>/api/comments?repo=<repoId>"
+curl -s "http://127.0.0.1:<port>/api/comments?repo=<repoId>"
 ```
 
 ### 2. Process each comment
@@ -61,12 +61,12 @@ For each comment with `"status": "open"`, first determine the intent — is it a
 
 ```bash
 # Reply to the comment
-curl -s -X POST http://localhost:<port>/api/comments/<id>/replies \
+curl -s -X POST http://127.0.0.1:<port>/api/comments/<id>/replies \
   -H "Content-Type: application/json" \
   -d '{"body": "Done. Renamed x to parsedToken."}'
 
 # Mark as resolved
-curl -s -X PUT http://localhost:<port>/api/comments/<id> \
+curl -s -X PUT http://127.0.0.1:<port>/api/comments/<id> \
   -H "Content-Type: application/json" \
   -d '{"status": "resolved"}'
 ```
@@ -76,7 +76,7 @@ curl -s -X PUT http://localhost:<port>/api/comments/<id> \
 Just reply with an answer. Do **not** modify code or resolve the comment — leave it open for the user to read and follow up if needed.
 
 ```bash
-curl -s -X POST http://localhost:<port>/api/comments/<id>/replies \
+curl -s -X POST http://127.0.0.1:<port>/api/comments/<id>/replies \
   -H "Content-Type: application/json" \
   -d '{"body": "A Map would work too, but we use a plain object here because..."}'
 ```
