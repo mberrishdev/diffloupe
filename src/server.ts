@@ -1,8 +1,12 @@
 import { readFile } from 'node:fs/promises'
 import { join, extname, resolve } from 'node:path'
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { serve } from '@hono/node-server'
-import { getGitDiff, getCustomGitDiff, getRepoName, getBranchName, getFileContent, getBlobContent, getWorktreeFileContent, isImageFile, getTabSizeForFiles, getUntrackedFilePaths } from './git.js'
+import { getGitDiff, getCustomGitDiff, getBranchName, getFileContent, getBlobContent, getWorktreeFileContent, getTabSizeForFiles, getUntrackedFilePaths } from './git.js'
+import type { Repo, RepoRegistry } from './repos.js'
+import { suggestRepos } from './discover.js'
+import { loadRecentRepos, rememberRepos } from './recent.js'
 import { loadSettings, saveSettings } from './settings.js'
 import { InMemoryCommentStore } from './comments.js'
 import type { CommentStore } from './comments.js'
@@ -90,38 +94,119 @@ function diffContainsFileVersion(patch: string, path: string, oldOid: string, ne
   return false
 }
 
-export function createApp(clientDir: string, customDiffArgs?: string[], commentStore?: CommentStore) {
+export interface AppOptions {
+  clientDir: string
+  repos: RepoRegistry
+  customDiffArgs?: string[]
+  commentStore?: CommentStore
+  /**
+   * Allow adding/removing repos over the API. Off when the server is exposed
+   * beyond localhost, so remote clients can't open arbitrary repos on this machine.
+   */
+  canManageRepos: boolean
+  /** Directory diffx was launched from; its child repos are offered as suggestions. */
+  launchDir: string
+}
+
+export function createApp({ clientDir, repos, customDiffArgs, commentStore, canManageRepos, launchDir }: AppOptions) {
   const app = new Hono()
   const isCustomMode = !!customDiffArgs
   const store = commentStore ?? new InMemoryCommentStore()
-  const viewedFiles = new Map<string, string>()
+  const viewedByRepo = new Map<string, Map<string, string>>()
+  const viewedFor = (repo: Repo) => {
+    let viewed = viewedByRepo.get(repo.id)
+    if (!viewed) viewedByRepo.set(repo.id, (viewed = new Map()))
+    return viewed
+  }
+
+  // Repo-scoped endpoints take `?repo=<id>`. Without it they fall back to the
+  // first repo, so single-repo clients and agent scripts keep working unchanged.
+  const getRepo = (c: Context): Repo | undefined => {
+    const id = c.req.query('repo')
+    return id === undefined ? repos.first() : repos.get(id)
+  }
+  const unknownRepo = (c: Context) => c.json({ error: `Unknown repo: ${c.req.query('repo') ?? '(none open)'}` }, 404)
+
+  const diffFor = (repo: Repo, options: { staged: boolean; untracked: boolean }) =>
+    isCustomMode ? getCustomGitDiff(repo.cwd, customDiffArgs) : getGitDiff(repo.root, options)
+
+  const repoInfo = (r: Repo) => ({ id: r.id, name: r.name, root: r.root, branch: getBranchName(r.root) })
+
+  app.get('/api/repos', (c) => {
+    return c.json({ repos: repos.list().map(repoInfo), canManage: canManageRepos })
+  })
+
+  app.get('/api/repo-suggestions', async (c) => {
+    if (!canManageRepos) return c.json({ error: 'Repo management is disabled' }, 403)
+    return c.json(await suggestRepos(repos.list(), launchDir, loadRecentRepos()))
+  })
+
+  app.post('/api/repos', async (c) => {
+    if (!canManageRepos) return c.json({ error: 'Repo management is disabled' }, 403)
+    // Requiring a JSON content type forces a CORS preflight, so other web
+    // pages open in the browser can't add repos with a "simple" request.
+    if (!c.req.header('Content-Type')?.startsWith('application/json')) {
+      return c.json({ error: 'Content-Type must be application/json' }, 415)
+    }
+    const { path } = await c.req.json<{ path?: unknown }>()
+    if (typeof path !== 'string' || path.trim() === '') {
+      return c.json({ error: 'Missing path' }, 400)
+    }
+    let repo: Repo
+    try {
+      repo = repos.add(path.trim())
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 400)
+    }
+    rememberRepos([repo.root])
+    return c.json(repoInfo(repo), 201)
+  })
+
+  // Removing a repo drops its comments and viewed state too: ids are reused by
+  // name, so anything left behind would attach to the next repo with that name.
+  app.delete('/api/repos/:id', async (c) => {
+    if (!canManageRepos) return c.json({ error: 'Repo management is disabled' }, 403)
+    const id = c.req.param('id')
+    if (!repos.remove(id)) return c.json({ error: `Unknown repo: ${id}` }, 404)
+    viewedByRepo.delete(id)
+    for (const comment of [...(await store.getAll())]) {
+      if (comment.repoId === id) await store.remove(comment.id)
+    }
+    return c.json({ ok: true })
+  })
 
   app.get('/api/diff', (c) => {
-    let patch: string
+    const repo = getRepo(c)
+    if (!repo) return unknownRepo(c)
     const staged = c.req.query('staged') === 'true'
     const untracked = c.req.query('untracked') === 'true'
-    if (isCustomMode) {
-      patch = getCustomGitDiff(customDiffArgs)
-    } else {
-      patch = getGitDiff({ staged, untracked })
+    let patch: string
+    try {
+      patch = diffFor(repo, { staged, untracked })
+    } catch (err) {
+      // Custom diff args can be valid in one repo and not another (e.g. a
+      // branch that only exists in some of them); report it for this repo only.
+      const stderr = (err as { stderr?: Buffer | string }).stderr?.toString().trim()
+      return c.json({ error: stderr || (err as Error).message }, 500)
     }
-    const repoName = getRepoName()
-    const branch = getBranchName()
-    const untrackedFiles = untracked ? getUntrackedFilePaths() : []
+    const branch = getBranchName(repo.root)
+    const untrackedFiles = untracked ? getUntrackedFilePaths(repo.root) : []
     const untrackedSet = new Set(untrackedFiles)
     const binaryFiles = parseBinaryFiles(patch, untrackedSet)
     const filePaths = parseFilePaths(patch)
-    const tabSizeMap = getTabSizeForFiles(filePaths)
-    return c.json({ patch, repoName, branch, customMode: isCustomMode, binaryFiles, tabSizeMap, untrackedFiles })
+    const tabSizeMap = getTabSizeForFiles(repo.root, filePaths)
+    return c.json({ patch, repoName: repo.name, branch, customMode: isCustomMode, binaryFiles, tabSizeMap, untrackedFiles })
   })
 
   app.get('/api/file-content', (c) => {
+    const repo = getRepo(c)
+    if (!repo) return unknownRepo(c)
     const path = c.req.query('path')
     const version = c.req.query('version') as 'old' | 'new'
     if (!path || !version) {
       return c.json({ error: 'Missing path or version' }, 400)
     }
-    const content = getFileContent(path, version)
+    const content = getFileContent(repo.root, path, version)
     if (!content) {
       return c.json({ error: 'File not found' }, 404)
     }
@@ -140,6 +225,8 @@ export function createApp(clientDir: string, customDiffArgs?: string[], commentS
   // rejects requests whose patch no longer matches the worktree (git recomputes
   // the worktree blob hash on every diff, so any edit changes the new oid).
   app.get('/api/file-versions', (c) => {
+    const repo = getRepo(c)
+    if (!repo) return unknownRepo(c)
     const path = c.req.query('path')
     const oldOid = c.req.query('oldOid')
     const newOid = c.req.query('newOid')
@@ -148,7 +235,12 @@ export function createApp(clientDir: string, customDiffArgs?: string[], commentS
     }
     const staged = c.req.query('staged') === 'true'
     const untracked = c.req.query('untracked') === 'true'
-    const patch = isCustomMode ? getCustomGitDiff(customDiffArgs) : getGitDiff({ staged, untracked })
+    let patch: string
+    try {
+      patch = diffFor(repo, { staged, untracked })
+    } catch {
+      return c.json({ error: 'Diff unavailable' }, 500)
+    }
     if (!diffContainsFileVersion(patch, path, oldOid, newOid)) {
       return c.json({ error: 'File version not in current diff' }, 404)
     }
@@ -156,8 +248,8 @@ export function createApp(clientDir: string, customDiffArgs?: string[], commentS
     // its content is empty. A non-zero oid that is missing from the object
     // database is the worktree blob of an unstaged change (git computes its
     // hash without storing it), so fall back to reading the worktree.
-    const oldContent = /^0+$/.test(oldOid) ? '' : getBlobContent(oldOid)
-    const newContent = /^0+$/.test(newOid) ? '' : getBlobContent(newOid) ?? getWorktreeFileContent(path)
+    const oldContent = /^0+$/.test(oldOid) ? '' : getBlobContent(repo.root, oldOid)
+    const newContent = /^0+$/.test(newOid) ? '' : getBlobContent(repo.root, newOid) ?? getWorktreeFileContent(repo.root, path)
     if (oldContent == null || newContent == null) {
       return c.json({ error: 'Content unavailable' }, 404)
     }
@@ -175,10 +267,15 @@ export function createApp(clientDir: string, customDiffArgs?: string[], commentS
   })
 
   app.get('/api/viewed', (c) => {
-    return c.json(Object.fromEntries(viewedFiles))
+    const repo = getRepo(c)
+    if (!repo) return unknownRepo(c)
+    return c.json(Object.fromEntries(viewedFor(repo)))
   })
 
   app.put('/api/viewed', async (c) => {
+    const repo = getRepo(c)
+    if (!repo) return unknownRepo(c)
+    const viewedFiles = viewedFor(repo)
     const { filePath, viewed, contentHash } = await c.req.json<{ filePath: string; viewed: boolean; contentHash?: string }>()
     if (viewed) {
       if (typeof contentHash !== 'string' || contentHash.length === 0) {
@@ -191,15 +288,23 @@ export function createApp(clientDir: string, customDiffArgs?: string[], commentS
     return c.json({ ok: true })
   })
 
+  // Lists comments across all repos unless `?repo=<id>` narrows it. Comment
+  // ids are globally unique, so the per-comment routes below need no repo.
   app.get('/api/comments', async (c) => {
+    const repoId = c.req.query('repo')
+    if (repoId !== undefined && !repos.get(repoId)) return unknownRepo(c)
     const comments = await store.getAll()
-    return c.json(comments)
+    return c.json(repoId === undefined ? comments : comments.filter((comment) => comment.repoId === repoId))
   })
 
   app.post('/api/comments', async (c) => {
+    const repo = getRepo(c)
+    if (!repo) return unknownRepo(c)
     const body = await c.req.json()
     const comment = {
       id: crypto.randomUUID(),
+      repoId: repo.id,
+      repoPath: repo.root,
       filePath: body.filePath,
       side: body.side,
       lineNumber: body.lineNumber,
@@ -268,13 +373,8 @@ export function createApp(clientDir: string, customDiffArgs?: string[], commentS
   return app
 }
 
-export function startServer(options: {
-  port: number
-  host: string
-  clientDir: string
-  customDiffArgs?: string[]
-}): Promise<{ port: number }> {
-  const app = createApp(options.clientDir, options.customDiffArgs)
+export function startServer(options: AppOptions & { port: number; host: string }): Promise<{ port: number }> {
+  const app = createApp(options)
 
   return new Promise((resolve) => {
     const server = serve({

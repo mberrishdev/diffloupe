@@ -1,4 +1,5 @@
 import type { BinaryFileInfo } from '../hooks/useDiff'
+import { repoUrl } from '../hooks/useRepos'
 
 const IMAGE_EXTENSIONS = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg', '.ico', '.avif',
@@ -10,13 +11,14 @@ function isImage(filePath: string): boolean {
 }
 
 interface BinaryFileDiffProps {
+  repoId: string
   filePath: string
   info: BinaryFileInfo
   viewed: boolean
   onViewedChange: (filePath: string, viewed: boolean) => void
 }
 
-export function BinaryFileDiff({ filePath, info, viewed, onViewedChange }: BinaryFileDiffProps) {
+export function BinaryFileDiff({ repoId, filePath, info, viewed, onViewedChange }: BinaryFileDiffProps) {
   const image = isImage(filePath)
 
   return (
@@ -35,7 +37,7 @@ export function BinaryFileDiff({ filePath, info, viewed, onViewedChange }: Binar
       {!viewed && (
         <div className="binary-diff-body">
           {image ? (
-            <ImagePreview filePath={filePath} changeType={info.type} />
+            <ImagePreview repoId={repoId} filePath={filePath} changeType={info.type} />
           ) : (
             <div className="binary-diff-message">
               Binary file {info.type === 'added' ? 'added' : info.type === 'untracked' ? 'untracked' : info.type === 'deleted' ? 'deleted' : 'changed'}
@@ -47,9 +49,9 @@ export function BinaryFileDiff({ filePath, info, viewed, onViewedChange }: Binar
   )
 }
 
-function ImagePreview({ filePath, changeType }: { filePath: string; changeType: BinaryFileInfo['type'] }) {
-  const oldSrc = `/api/file-content?path=${encodeURIComponent(filePath)}&version=old`
-  const newSrc = `/api/file-content?path=${encodeURIComponent(filePath)}&version=new`
+function ImagePreview({ repoId, filePath, changeType }: { repoId: string; filePath: string; changeType: BinaryFileInfo['type'] }) {
+  const oldSrc = repoUrl(`/api/file-content?path=${encodeURIComponent(filePath)}&version=old`, repoId)
+  const newSrc = repoUrl(`/api/file-content?path=${encodeURIComponent(filePath)}&version=new`, repoId)
 
   if (changeType === 'added' || changeType === 'untracked') {
     return (

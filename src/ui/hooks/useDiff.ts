@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { repoUrl } from './useRepos'
 
 export interface BinaryFileInfo {
   path: string
@@ -20,7 +21,7 @@ export interface DiffOptions {
   untracked: boolean
 }
 
-export function useDiff(options: DiffOptions) {
+export function useDiff(repoId: string, options: DiffOptions) {
   const [data, setData] = useState<DiffData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -29,15 +30,18 @@ export function useDiff(options: DiffOptions) {
     setLoading(true)
     setError(null)
 
-    fetch(`/api/diff?staged=${options.staged}&untracked=${options.untracked}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    fetch(repoUrl(`/api/diff?staged=${options.staged}&untracked=${options.untracked}`, repoId))
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => null)
+          throw new Error(body?.error ?? `HTTP ${res.status}`)
+        }
         return res.json()
       })
       .then((json) => setData(json))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [options.staged, options.untracked])
+  }, [repoId, options.staged, options.untracked])
 
   return {
     patch: data?.patch ?? null,

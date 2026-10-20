@@ -1,20 +1,20 @@
 import { useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FileDiffMetadata } from '@pierre/diffs'
-
-const VIEWED_KEY = ['viewed']
+import { repoUrl } from './useRepos'
 
 type ViewedMap = Record<string, string>
 
-async function fetchViewed(): Promise<ViewedMap> {
-  const res = await fetch('/api/viewed')
+async function fetchViewed(repoId: string): Promise<ViewedMap> {
+  const res = await fetch(repoUrl('/api/viewed', repoId))
   const data = await res.json()
   return data && typeof data === 'object' && !Array.isArray(data) ? data : {}
 }
 
-export function useViewed(files: FileDiffMetadata[]) {
+export function useViewed(repoId: string, files: FileDiffMetadata[]) {
   const queryClient = useQueryClient()
-  const { data: viewedMap = {} } = useQuery({ queryKey: VIEWED_KEY, queryFn: fetchViewed })
+  const viewedKey = useMemo(() => ['viewed', repoId], [repoId])
+  const { data: viewedMap = {} } = useQuery({ queryKey: viewedKey, queryFn: () => fetchViewed(repoId) })
 
   const fileHashByName = useMemo(() => {
     const map: Record<string, string | undefined> = {}
@@ -36,8 +36,8 @@ export function useViewed(files: FileDiffMetadata[]) {
   const setViewed = useCallback(async (filePath: string, viewed: boolean) => {
     const contentHash = fileHashByName[filePath] ?? ''
 
-    await queryClient.cancelQueries({ queryKey: VIEWED_KEY })
-    queryClient.setQueryData<ViewedMap>(VIEWED_KEY, (prev = {}) => {
+    await queryClient.cancelQueries({ queryKey: viewedKey })
+    queryClient.setQueryData<ViewedMap>(viewedKey, (prev = {}) => {
       const next = { ...prev }
       if (viewed) {
         next[filePath] = contentHash
@@ -51,15 +51,15 @@ export function useViewed(files: FileDiffMetadata[]) {
     // change-detected — keep them session-cache-only.
     if (!contentHash) return
 
-    const res = await fetch('/api/viewed', {
+    const res = await fetch(repoUrl('/api/viewed', repoId), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filePath, viewed, contentHash: viewed ? contentHash : undefined }),
     })
     if (!res.ok) {
-      queryClient.invalidateQueries({ queryKey: VIEWED_KEY })
+      queryClient.invalidateQueries({ queryKey: viewedKey })
     }
-  }, [queryClient, fileHashByName])
+  }, [queryClient, viewedKey, repoId, fileHashByName])
 
   return { viewedFiles, setViewed }
 }

@@ -26,6 +26,8 @@ The response is a JSON array of comment objects:
 [
   {
     "id": "uuid",
+    "repoId": "my-app",
+    "repoPath": "/home/me/code/my-app",
     "filePath": "src/utils/parser.ts",
     "side": "additions",
     "lineNumber": 42,
@@ -38,13 +40,21 @@ The response is a JSON array of comment objects:
 ]
 ```
 
+`filePath` is relative to `repoPath`, the root of the repository the comment belongs to.
+
+diffx can review several repositories at once. If the comments span more than one `repoPath`, only process the ones for the repository you are working in, unless the user asked you to handle all of them. You can also filter on the server with `?repo=<repoId>`:
+
+```bash
+curl -s "http://localhost:<port>/api/comments?repo=<repoId>"
+```
+
 ### 2. Process each comment
 
 For each comment with `"status": "open"`, first determine the intent — is it a **change request** or a **question**?
 
 #### Change requests (e.g., "Rename x to parsedToken", "Extract this into a helper")
 
-1. Read the file at `filePath`
+1. Read the file at `filePath` (relative to `repoPath`)
 2. Find the relevant code using `lineContent` as context
 3. Apply the change described in `body`
 4. Reply to the comment explaining what you did, then mark it as resolved:

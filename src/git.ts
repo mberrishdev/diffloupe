@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { basename, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { readFileSync, lstatSync, readlinkSync } from 'node:fs'
 import { isSafePath } from './path.js'
 import { parseSync as parseEditorConfig, type ProcessedFileConfig } from 'editorconfig'
@@ -26,8 +26,7 @@ function isBinaryFile(absolutePath: string): boolean {
   }
 }
 
-export function getFileContent(filePath: string, version: 'old' | 'new'): Buffer | null {
-  const root = getRepoRoot()
+export function getFileContent(root: string, filePath: string, version: 'old' | 'new'): Buffer | null {
   if (!isSafePath(filePath, root)) {
     return null
   }
@@ -41,7 +40,7 @@ export function getFileContent(filePath: string, version: 'old' | 'new'): Buffer
   }
   // old version: try staged first, then HEAD
   try {
-    return execFileSync('git', ['show', `HEAD:${filePath}`], { stdio: 'pipe', maxBuffer: 50 * 1024 * 1024 })
+    return execFileSync('git', ['show', `HEAD:${filePath}`], { cwd: root, stdio: 'pipe', maxBuffer: 50 * 1024 * 1024 })
   } catch {
     return null
   }
@@ -49,19 +48,18 @@ export function getFileContent(filePath: string, version: 'old' | 'new'): Buffer
 
 const BLOB_OID_REGEX = /^[0-9a-f]{4,64}$/
 
-export function getBlobContent(oid: string): string | null {
+export function getBlobContent(root: string, oid: string): string | null {
   if (!BLOB_OID_REGEX.test(oid) || /^0+$/.test(oid)) {
     return null
   }
   try {
-    return execFileSync('git', ['cat-file', 'blob', oid], { encoding: 'utf-8', stdio: 'pipe', maxBuffer: 50 * 1024 * 1024 })
+    return execFileSync('git', ['cat-file', 'blob', oid], { cwd: root, encoding: 'utf-8', stdio: 'pipe', maxBuffer: 50 * 1024 * 1024 })
   } catch {
     return null
   }
 }
 
-export function getWorktreeFileContent(filePath: string): string | null {
-  const root = getRepoRoot()
+export function getWorktreeFileContent(root: string, filePath: string): string | null {
   if (!isSafePath(filePath, root)) {
     return null
   }
@@ -83,28 +81,18 @@ export function getWorktreeFileContent(filePath: string): string | null {
   }
 }
 
-export function isGitRepo(): boolean {
+/** Returns the work tree root containing `dir`, or null if `dir` is not inside one. */
+export function findRepoRoot(dir: string): string | null {
   try {
-    execFileSync('git', ['rev-parse', '--is-inside-work-tree'], { stdio: 'pipe' })
-    return true
+    return execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, stdio: 'pipe', encoding: 'utf-8' }).trim() || null
   } catch {
-    return false
+    return null
   }
 }
 
-export function getRepoRoot(): string {
-  return execFileSync('git', ['rev-parse', '--show-toplevel'], {
-    encoding: 'utf-8',
-  }).trim()
-}
-
-export function getRepoName(): string {
-  return basename(getRepoRoot())
-}
-
-export function getBranchName(): string {
+export function getBranchName(root: string): string {
   try {
-    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { stdio: 'pipe', encoding: 'utf-8' }).trim()
+    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, stdio: 'pipe', encoding: 'utf-8' }).trim()
   } catch {
     return ''
   }
@@ -114,34 +102,35 @@ export function getBranchName(): string {
 // (e.g. diff.external = difftastic, color.ui = always).
 const DIFF_FLAGS = ['--no-ext-diff', '--no-color'] as const
 
-export function getCustomGitDiff(args: string[]): string {
-  return execFileSync('git', ['diff', ...DIFF_FLAGS, ...args], { encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 })
+// Runs in `cwd` (the directory the user pointed diffx at) rather than the
+// repo root, so pathspecs in the custom args resolve the way they would in a shell.
+export function getCustomGitDiff(cwd: string, args: string[]): string {
+  return execFileSync('git', ['diff', ...DIFF_FLAGS, ...args], { cwd, encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 })
 }
 
-export function getGitDiff(options: { staged?: boolean; untracked?: boolean } = {}): string {
+export function getGitDiff(root: string, options: { staged?: boolean; untracked?: boolean } = {}): string {
   const parts: string[] = []
 
   // unstaged changes (always included as the base)
-  const unstaged = execFileSync('git', ['diff', ...DIFF_FLAGS], { encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 })
+  const unstaged = execFileSync('git', ['diff', ...DIFF_FLAGS], { cwd: root, encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 })
   if (unstaged) parts.push(unstaged)
 
   // staged changes
   if (options.staged) {
-    const staged = execFileSync('git', ['diff', ...DIFF_FLAGS, '--staged'], { encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 })
+    const staged = execFileSync('git', ['diff', ...DIFF_FLAGS, '--staged'], { cwd: root, encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 })
     if (staged) parts.push(staged)
   }
 
   // untracked files
   if (options.untracked) {
-    const untrackedPatch = getUntrackedFilesDiff()
+    const untrackedPatch = getUntrackedFilesDiff(root)
     if (untrackedPatch) parts.push(untrackedPatch)
   }
 
   return parts.join('\n')
 }
 
-export function getTabSizeForFiles(filePaths: string[]): Record<string, number> {
-  const root = getRepoRoot()
+export function getTabSizeForFiles(root: string, filePaths: string[]): Record<string, number> {
   const cache = new Map<string, ProcessedFileConfig>()
   const result: Record<string, number> = {}
   for (const filePath of filePaths) {
@@ -159,17 +148,18 @@ export function getTabSizeForFiles(filePaths: string[]): Record<string, number> 
   return result
 }
 
-export function getUntrackedFilePaths(): string[] {
+export function getUntrackedFilePaths(root: string): string[] {
   const output = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], {
+    cwd: root,
     encoding: 'utf-8',
     maxBuffer: 50 * 1024 * 1024,
   }).trim()
   return output ? output.split('\n') : []
 }
 
-function getUntrackedFilesDiff(): string {
-  const root = getRepoRoot()
+function getUntrackedFilesDiff(root: string): string {
   const output = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], {
+    cwd: root,
     encoding: 'utf-8',
     maxBuffer: 50 * 1024 * 1024,
   }).trim()

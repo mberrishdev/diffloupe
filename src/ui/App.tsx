@@ -1,18 +1,25 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import type { ReactNode } from 'react'
 import { Resizable } from 'react-resizable'
 import { parsePatchFiles } from '@pierre/diffs'
 import { Virtualizer } from '@pierre/diffs/react'
 import type { FileDiffMetadata } from '@pierre/diffs'
 import type { ReviewComment } from '../types'
 import { useDiff } from './hooks/useDiff'
-import { useComments } from './hooks/useComments'
+import { useComments, useAllComments } from './hooks/useComments'
 import { useSettings } from './hooks/useSettings'
+import type { Settings } from './hooks/useSettings'
+import { useRepos } from './hooks/useRepos'
+import type { RepoInfo } from './hooks/useRepos'
 import { useViewed } from './hooks/useViewed'
 import { useFullDiffs, fileKey } from './hooks/useFullDiffs'
 import { Toolbar } from './components/Toolbar'
 import { DiffViewer } from './components/DiffViewer'
 import { FileTree } from './components/FileTree'
 import { CommentTracker } from './components/CommentTracker'
+import { RepoSwitcher } from './components/RepoSwitcher'
+import type { RepoCommentCounts } from './components/RepoSwitcher'
+import { RepoPicker } from './components/RepoPicker'
 import { SidebarStorage } from './sidebarStorage'
 
 function useWindowSize({ factor }: { factor: number }) {
@@ -29,14 +36,96 @@ function useWindowSize({ factor }: { factor: number }) {
   return size
 }
 
+function StatusView({ title, className, message }: { title?: ReactNode; className: string; message: string }) {
+  return (
+    <div className="app">
+      {title && (
+        <div className="toolbar">
+          <div className="toolbar-left">{title}</div>
+        </div>
+      )}
+      <div className={className}>
+        <p>{message}</p>
+      </div>
+    </div>
+  )
+}
+
 export function App() {
   const { settings, loaded, updateSettings } = useSettings()
-  const { patch, repoName, branch, customMode, binaryFiles, tabSizeMap, untrackedFiles, loading, error } = useDiff({
+  const { repos, activeRepo, loaded: reposLoaded, canManage, selectRepo, addRepo, removeRepo, error } = useRepos()
+  const allComments = useAllComments()
+
+  const commentCounts = useMemo(() => {
+    const counts: Record<string, RepoCommentCounts> = {}
+    for (const c of allComments) {
+      const entry = (counts[c.repoId] ??= { open: 0, total: 0 })
+      entry.total++
+      if (c.status === 'open') entry.open++
+    }
+    return counts
+  }, [allComments])
+
+  if (error) {
+    return <StatusView className="error" message={`Error: ${error}`} />
+  }
+
+  if (!loaded || !reposLoaded) {
+    return <StatusView className="loading" message="Loading diff..." />
+  }
+
+  if (!activeRepo) {
+    return (
+      <div className="app">
+        <div className="repo-empty">
+          <h1 className="repo-empty-title">Pick a repository to review</h1>
+          <div className="repo-empty-picker">
+            <RepoPicker onAdd={addRepo} />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <RepoReview
+      // Remount per repo so file-scoped UI state (active file, scroll
+      // position, expanded hunks) never leaks from one repo into another.
+      key={activeRepo.id}
+      repo={activeRepo}
+      multiRepo={repos.length > 1}
+      title={
+        <RepoSwitcher
+          repos={repos}
+          activeRepo={activeRepo}
+          commentCounts={commentCounts}
+          canManage={canManage}
+          onSelect={selectRepo}
+          onAdd={addRepo}
+          onRemove={removeRepo}
+        />
+      }
+      settings={settings}
+      updateSettings={updateSettings}
+    />
+  )
+}
+
+interface RepoReviewProps {
+  repo: RepoInfo
+  multiRepo: boolean
+  title: ReactNode
+  settings: Settings
+  updateSettings: (patch: Partial<Settings>) => void
+}
+
+function RepoReview({ repo, multiRepo, title, settings, updateSettings }: RepoReviewProps) {
+  const { patch, branch, customMode, binaryFiles, tabSizeMap, untrackedFiles, loading, error } = useDiff(repo.id, {
     staged: settings.staged,
     untracked: settings.untracked,
   })
   const { comments, addComment, removeComment, copyAllComments } =
-    useComments()
+    useComments(repo.id, multiRepo)
   const [activeFile, setActiveFile] = useState<string | null>(null)
   const [sidebar, setSidebar] = useState(() => SidebarStorage.load())
   const maxSidebarWidth = Math.max(SidebarStorage.minSize, useWindowSize({ factor: 0.5 }))
@@ -84,13 +173,13 @@ export function App() {
     }
   }, [patch, binaryFiles])
 
-  const fullFiles = useFullDiffs(patch, files, { staged: settings.staged, untracked: settings.untracked })
+  const fullFiles = useFullDiffs(repo.id, patch, files, { staged: settings.staged, untracked: settings.untracked })
   const displayFiles = useMemo(() => {
     if (fullFiles.size === 0) return files
     return files.map((f) => fullFiles.get(fileKey(f)) ?? f)
   }, [files, fullFiles])
 
-  const { viewedFiles, setViewed } = useViewed(files)
+  const { viewedFiles, setViewed } = useViewed(repo.id, files)
 
   const diffStats = useMemo(() => {
     if (!patch) return { additions: 0, deletions: 0 }
@@ -164,26 +253,18 @@ export function App() {
     </div>
   )
 
-  if (!loaded || loading) {
-    return (
-      <div className="loading">
-        <p>Loading diff...</p>
-      </div>
-    )
+  if (loading) {
+    return <StatusView title={title} className="loading" message="Loading diff..." />
   }
 
   if (error) {
-    return (
-      <div className="error">
-        <p>Error: {error}</p>
-      </div>
-    )
+    return <StatusView title={title} className="error" message={`Error: ${error}`} />
   }
 
   return (
     <div className="app">
       <Toolbar
-        repoName={repoName}
+        title={title}
         branch={branch}
         fileCount={files.length}
         additions={diffStats.additions}
@@ -227,6 +308,7 @@ export function App() {
         <main className="main">
           <Virtualizer className="main-scroll" contentClassName="main-content">
             <DiffViewer
+              repoId={repo.id}
               files={displayFiles}
               diffStyle={settings.diffStyle}
               tabSizeMap={tabSizeMap}

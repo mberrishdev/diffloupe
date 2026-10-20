@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
+import type { ReactNode } from 'react'
 import { GitBranch, Settings } from 'lucide-react'
 import type { DiffOptions } from '../hooks/useDiff'
 
 interface ToolbarProps {
-  repoName: string
+  /** Repo name, or the repo switcher when several repos are under review. */
+  title: ReactNode
   branch: string
   fileCount: number
   additions: number
@@ -24,7 +26,7 @@ interface ToolbarProps {
 }
 
 export function Toolbar({
-  repoName,
+  title,
   branch,
   fileCount,
   additions,
@@ -68,7 +70,7 @@ export function Toolbar({
   return (
     <div className="toolbar">
       <div className="toolbar-left">
-        <h1 className="toolbar-title">{repoName}</h1>
+        {title}
         {branch && (
           <span className="toolbar-branch">
             <GitBranch size={12} />

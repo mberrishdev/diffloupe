@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { DiffLineAnnotation } from '@pierre/diffs'
 import type { ReviewComment } from '../../types'
+import { repoUrl } from './useRepos'
 
 const COMMENTS_KEY = ['comments']
 
@@ -10,13 +11,24 @@ async function fetchComments(): Promise<ReviewComment[]> {
   return res.json()
 }
 
-export function useComments() {
+/** Comments for every repo in the session, polled so agent replies show up live. */
+export function useAllComments(): ReviewComment[] {
+  const { data = [] } = useQuery({ queryKey: COMMENTS_KEY, queryFn: fetchComments, refetchInterval: 3000 })
+  return data
+}
+
+/**
+ * Comments for one repo. `labelRepo` adds the repo path to the copied XML,
+ * which is needed to tell repos apart when several are under review.
+ */
+export function useComments(repoId: string, labelRepo: boolean) {
   const queryClient = useQueryClient()
-  const { data: comments = [] } = useQuery({ queryKey: COMMENTS_KEY, queryFn: fetchComments, refetchInterval: 3000 })
+  const allComments = useAllComments()
+  const comments = useMemo(() => allComments.filter((c) => c.repoId === repoId), [allComments, repoId])
 
   const addMutation = useMutation({
     mutationFn: async (params: { filePath: string; side: 'deletions' | 'additions'; lineNumber: number; lineContent: string; body: string }) => {
-      const res = await fetch('/api/comments', {
+      const res = await fetch(repoUrl('/api/comments', repoId), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
@@ -92,7 +104,7 @@ export function useComments() {
       grouped.set(comment.filePath, list)
     }
 
-    const lines: string[] = ['<code-review-comments>']
+    const lines: string[] = [labelRepo ? `<code-review-comments repo="${comments[0].repoPath}">` : '<code-review-comments>']
     for (const [filePath, fileComments] of grouped) {
       lines.push(`<file path="${filePath}">`)
       for (const comment of fileComments) {
@@ -107,7 +119,7 @@ export function useComments() {
     lines.push('</code-review-comments>')
 
     return lines.join('\n')
-  }, [comments])
+  }, [comments, labelRepo])
 
   const getAnnotationsForFile = useCallback(
     (filePath: string): DiffLineAnnotation<ReviewComment>[] => {

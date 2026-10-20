@@ -25,7 +25,10 @@ diffx -- --staged          # Only staged changes
 diffx -- HEAD~3            # Last 3 commits
 diffx -- main..HEAD        # Current branch vs main
 diffx -p 8080             # Custom port (default: random available port)
+diffx ../api ../web       # Several repositories in one session (repo switcher in the UI)
 ```
+
+The user can also add or remove repositories from the repo menu in the browser, so you don't need to restart diffx to review another repo.
 
 Anything after `--` is passed directly to `git diff`, so any valid git diff arguments work.
 

@@ -6,6 +6,9 @@ export interface CommentReply {
 
 export interface ReviewComment {
   id: string
+  repoId: string
+  /** Absolute path of the repo root; `filePath` is relative to it. */
+  repoPath: string
   filePath: string
   side: 'deletions' | 'additions'
   lineNumber: number

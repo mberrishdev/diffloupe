@@ -6,6 +6,7 @@ import { FileDiffCard } from './FileDiffCard'
 import { BinaryFileDiff } from './BinaryFileDiff'
 
 interface DiffViewerProps {
+  repoId: string
   files: FileDiffMetadata[]
   diffStyle: 'split' | 'unified'
   tabSizeMap: Record<string, number>
@@ -22,6 +23,7 @@ interface DiffViewerProps {
 const emptyAnnotations: DiffLineAnnotation<ReviewComment>[] = []
 
 export const DiffViewer = memo(function DiffViewer({
+  repoId,
   files,
   diffStyle,
   tabSizeMap,
@@ -67,6 +69,7 @@ export const DiffViewer = memo(function DiffViewer({
           return (
             <BinaryFileDiff
               key={`${filePath}-${index}`}
+              repoId={repoId}
               filePath={filePath}
               info={binaryInfo}
               viewed={viewedFiles.has(filePath)}

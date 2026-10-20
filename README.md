@@ -23,7 +23,7 @@ This starts a local server and opens your browser with a diff review UI.
 ### Options
 
 ```
-diffx [options] [-- <git-diff-args>]
+diffx [options] [<repo-path>...] [-- <git-diff-args>]
 
 Options:
   -p, --port <port>   Server port (default: 3433)
@@ -35,6 +35,28 @@ Examples:
   diffx -- HEAD~3                # Diff against 3 commits ago
   diffx -- main..HEAD            # Diff between branches
   diffx -- --cached -- src/      # Staged changes in src/
+  diffx ../api ../web            # Review several repositories in one session
+  diffx ../api ../web -- HEAD~1  # git diff args apply to every repository
+```
+
+### Multiple repositories
+
+Review several repos (or git worktrees) in one session, which is handy when coding agents work on them in parallel. Click the repo name in the toolbar to switch repos, see each repo's open comment count, remove a repo, or **Add repository…**. The picker suggests:
+
+- git worktrees of the repos you have open
+- repos you reviewed recently (remembered in `~/.config/diffx/recent-repos.json`)
+- repos next to the ones you have open, or inside the folder you launched diffx from
+
+Repos with uncommitted changes are listed first and marked with a green dot. You can also type or paste any path, such as `~/code/api`. Running `diffx` outside a git repository opens the picker directly, and you can still pass repo paths on the command line (`diffx ../api ../web`).
+
+Adding and removing repos from the UI is only available when diffx listens on localhost (the default). With `--host 0.0.0.0` the repo list is fixed to the paths given at startup, so other machines can't open arbitrary repos on yours.
+
+The selected repo is kept in the URL (`?repo=<id>`), so you can open one browser tab per repo. Comments and viewed state are tracked per repo (removing a repo deletes its comments), and "Copy comments" copies the current repo's comments with its path on the root element:
+
+```xml
+<code-review-comments repo="/home/me/code/api">
+...
+</code-review-comments>
 ```
 
 ## Features
@@ -50,6 +72,7 @@ Examples:
 - **Viewed tracking** — Mark files as reviewed to track progress
 - **Staged / Untracked toggles** — Choose which changes to include
 - **Custom diff commands** — Pass any `git diff` arguments after `--`
+- **Multiple repositories** — Add, switch between and remove repos or worktrees from the toolbar, with suggestions for nearby, worktree and recent repos
 - **EditorConfig support** — Respects `.editorconfig` for per-file tab size
 - **Persistent settings** — Your preferences are saved across sessions
 
