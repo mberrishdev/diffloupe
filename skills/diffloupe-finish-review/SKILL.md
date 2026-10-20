@@ -1,24 +1,24 @@
 ---
-name: diffx-finish-review
-description: "Finish a code review session by fetching comments from the running diffx server, applying requested changes, and marking comments as resolved. Use when the user invokes /diffx-finish-review."
+name: diffloupe-finish-review
+description: "Finish a code review session by fetching comments from the running diffloupe server, applying requested changes, and marking comments as resolved. Use when the user invokes /diffloupe-finish-review."
 user_invocable: true
 ---
 
-# Finish diffx Review
+# Finish diffloupe Review
 
-Fetch all review comments from the running diffx server, apply the requested changes, and mark each comment as resolved.
+Fetch all review comments from the running diffloupe server, apply the requested changes, and mark each comment as resolved.
 
 ## What to do
 
 ### 1. Fetch comments from the API
 
-The diffx server is running locally. Check the earlier conversation context for the port diffx reported on startup. Fetch all comments:
+The diffloupe server is running locally. Check the earlier conversation context for the port diffloupe reported on startup. Fetch all comments:
 
 ```bash
 curl -s http://localhost:<port>/api/comments
 ```
 
-Replace `<port>` with the port number diffx reported on startup (visible in the server log output).
+Replace `<port>` with the port number diffloupe reported on startup (visible in the server log output).
 
 The response is a JSON array of comment objects:
 
@@ -42,7 +42,7 @@ The response is a JSON array of comment objects:
 
 `filePath` is relative to `repoPath`, the root of the repository the comment belongs to.
 
-diffx can review several repositories at once. If the comments span more than one `repoPath`, only process the ones for the repository you are working in, unless the user asked you to handle all of them. You can also filter on the server with `?repo=<repoId>`:
+diffloupe can review several repositories at once. If the comments span more than one `repoPath`, only process the ones for the repository you are working in, unless the user asked you to handle all of them. You can also filter on the server with `?repo=<repoId>`:
 
 ```bash
 curl -s "http://localhost:<port>/api/comments?repo=<repoId>"

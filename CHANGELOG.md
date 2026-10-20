@@ -1,5 +1,7 @@
 # Changelog
 
+Versions up to 0.16.0 were released as [diffx-cli](https://www.npmjs.com/package/diffx-cli) by wong2.
+
 ## 0.16.0
 
 ### Minor Changes

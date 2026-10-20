@@ -48,7 +48,7 @@ export function ToolingChips({ languages, onOpen }: { languages: LanguageTooling
   )
 }
 
-const dismissKey = (repoRoot: string, languageId: string) => `diffx-tooling-dismissed:${repoRoot}:${languageId}`
+const dismissKey = (repoRoot: string, languageId: string) => `diffloupe-tooling-dismissed:${repoRoot}:${languageId}`
 
 function isDismissed(repoRoot: string, languageId: string): boolean {
   try {

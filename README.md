@@ -1,13 +1,15 @@
-# diffx
+# diffloupe
+
+> A sharper lens on your diffs. Forked from [diffx](https://github.com/wong2/diffx) by [wong2](https://github.com/wong2), extended with multi-repo review, code navigation and more.
 
 A local code review tool designed for the coding agent workflow. Review AI-generated changes in a GitHub PR-like web UI, leave inline comments, then hand them back to your coding agent to fix.
 
-![screenshot](https://raw.githubusercontent.com/wong2/diffx/main/screenshot.png)
+![screenshot](https://raw.githubusercontent.com/mberrishdev/diffloupe/main/screenshot.png)
 
 ## Install
 
 ```bash
-npm install -g diffx-cli
+npm install -g diffloupe
 ```
 
 ## Usage
@@ -15,7 +17,7 @@ npm install -g diffx-cli
 Run in any git repository:
 
 ```bash
-diffx
+diffloupe
 ```
 
 This starts a local server and opens your browser with a diff review UI.
@@ -23,20 +25,20 @@ This starts a local server and opens your browser with a diff review UI.
 ### Options
 
 ```
-diffx [options] [<repo-path>...] [-- <git-diff-args>]
+diffloupe [options] [<repo-path>...] [-- <git-diff-args>]
 
 Options:
   -p, --port <port>   Server port (default: 3433)
   --no-open           Don't auto-open browser
 
 Examples:
-  diffx                          # Review working tree changes
-  diffx -p 8080                  # Use custom port
-  diffx -- HEAD~3                # Diff against 3 commits ago
-  diffx -- main..HEAD            # Diff between branches
-  diffx -- --cached -- src/      # Staged changes in src/
-  diffx ../api ../web            # Review several repositories in one session
-  diffx ../api ../web -- HEAD~1  # git diff args apply to every repository
+  diffloupe                          # Review working tree changes
+  diffloupe -p 8080                  # Use custom port
+  diffloupe -- HEAD~3                # Diff against 3 commits ago
+  diffloupe -- main..HEAD            # Diff between branches
+  diffloupe -- --cached -- src/      # Staged changes in src/
+  diffloupe ../api ../web            # Review several repositories in one session
+  diffloupe ../api ../web -- HEAD~1  # git diff args apply to every repository
 ```
 
 ### Code navigation
@@ -46,33 +48,33 @@ Examples:
 Results come in two stages:
 
 1. **Text matches** appear instantly for any language: a whole-word `git grep` over the work tree, with definitions and implementations recognised by pattern.
-2. **Exact results** replace them when a language server is installed for the file's language. diffx starts it on first use and keeps it running for the session:
+2. **Exact results** replace them when a language server is installed for the file's language. diffloupe starts it on first use and keeps it running for the session:
 
 | Language | Language server | Install |
 | --- | --- | --- |
 | C# / .NET | csharp-ls | `dotnet tool install --global csharp-ls` |
 | TypeScript / JavaScript | typescript-language-server | `npm install --global typescript-language-server typescript` |
 
-You don't need to remember any of this: when you open a C# or TypeScript repository, diffx checks what exact navigation needs and shows a banner if something is missing. The chip next to the diff stats (e.g. **C# · Setup needed**, **C# · Loading solution…**, **C# · Exact navigation**) opens a setup checklist that covers:
+You don't need to remember any of this: when you open a C# or TypeScript repository, diffloupe checks what exact navigation needs and shows a banner if something is missing. The chip next to the diff stats (e.g. **C# · Setup needed**, **C# · Loading solution…**, **C# · Exact navigation**) opens a setup checklist that covers:
 
 - **C#:** a .NET SDK new enough for csharp-ls and for your projects' target frameworks, any SDK pinned by `global.json`, csharp-ls itself, a solution or project file, and restored NuGet packages
 - **TypeScript/JavaScript:** typescript-language-server, the `typescript` package, and installed dependencies
 
-Each missing item comes with the command to run, and steps that are safe to automate (installing the language server, `dotnet restore`, installing dependencies) have a **Run it for me** button. Once everything is in place, diffx starts the language server in the background so the project is loaded before your first click. Setup steps can only be run from the UI when diffx listens on localhost.
+Each missing item comes with the command to run, and steps that are safe to automate (installing the language server, `dotnet restore`, installing dependencies) have a **Run it for me** button. Once everything is in place, diffloupe starts the language server in the background so the project is loaded before your first click. Setup steps can only be run from the UI when diffloupe listens on localhost.
 
-diffx finds `csharp-ls` in `~/.dotnet/tools` and `typescript-language-server` in the repo's `node_modules/.bin`, as well as on your `PATH`. Large .NET solutions can take a while to load; until then the panel shows text matches and upgrades automatically. Symbols on removed lines always use text matches, since those lines no longer exist on disk.
+diffloupe finds `csharp-ls` in `~/.dotnet/tools` and `typescript-language-server` in the repo's `node_modules/.bin`, as well as on your `PATH`. Large .NET solutions can take a while to load; until then the panel shows text matches and upgrades automatically. Symbols on removed lines always use text matches, since those lines no longer exist on disk.
 
 ### Multiple repositories
 
 Review several repos (or git worktrees) in one session, which is handy when coding agents work on them in parallel. Click the repo name in the toolbar to switch repos, see each repo's open comment count, remove a repo, or **Add repository…**. The picker suggests:
 
 - git worktrees of the repos you have open
-- repos you reviewed recently (remembered in `~/.config/diffx/recent-repos.json`)
-- repos next to the ones you have open, or inside the folder you launched diffx from
+- repos you reviewed recently (remembered in `~/.config/diffloupe/recent-repos.json`)
+- repos next to the ones you have open, or inside the folder you launched diffloupe from
 
-Repos with uncommitted changes are listed first and marked with a green dot. You can also type or paste any path, such as `~/code/api`. Running `diffx` outside a git repository opens the picker directly, and you can still pass repo paths on the command line (`diffx ../api ../web`).
+Repos with uncommitted changes are listed first and marked with a green dot. You can also type or paste any path, such as `~/code/api`. Running `diffloupe` outside a git repository opens the picker directly, and you can still pass repo paths on the command line (`diffloupe ../api ../web`).
 
-Adding and removing repos from the UI is only available when diffx listens on localhost (the default). With `--host 0.0.0.0` the repo list is fixed to the paths given at startup, so other machines can't open arbitrary repos on yours.
+Adding and removing repos from the UI is only available when diffloupe listens on localhost (the default). With `--host 0.0.0.0` the repo list is fixed to the paths given at startup, so other machines can't open arbitrary repos on yours.
 
 The selected repo is kept in the URL (`?repo=<id>`), so you can open one browser tab per repo. Comments and viewed state are tracked per repo (removing a repo deletes its comments), and "Copy comments" copies the current repo's comments with its path on the root element:
 
@@ -123,17 +125,17 @@ Each comment includes the commented code line with a `+`/`-` prefix indicating w
 
 ## Agent Skills
 
-Install the diffx skills to use diffx directly from your AI coding agent:
+Install the diffloupe skills to use diffloupe directly from your AI coding agent:
 
 ```bash
-npx skills add wong2/diffx
+npx skills add mberrishdev/diffloupe
 ```
 
 The review workflow uses two commands:
 
-1. **`/diffx-start-review`** — Launches the diffx server and opens the browser. Review your changes and leave inline comments.
-2. **`/diffx-finish-review`** — The agent fetches all comments from the running diffx server via API, applies the requested changes, and marks each comment as resolved. The browser UI updates in real time as comments are resolved.
+1. **`/diffloupe-start-review`** — Launches the diffloupe server and opens the browser. Review your changes and leave inline comments.
+2. **`/diffloupe-finish-review`** — The agent fetches all comments from the running diffloupe server via API, applies the requested changes, and marks each comment as resolved. The browser UI updates in real time as comments are resolved.
 
 ## License
 
-MIT
+MIT. Based on [diffx](https://github.com/wong2/diffx) by wong2; see [LICENSE](LICENSE).

@@ -22,7 +22,7 @@ export interface ToolingFix {
   /** Where the command runs: the repo root, or anywhere for global installs. */
   runIn?: 'repo' | 'anywhere'
   url?: string
-  /** diffx can run `command` itself via POST /api/tooling/fix. */
+  /** diffloupe can run `command` itself via POST /api/tooling/fix. */
   runnable: boolean
 }
 
@@ -45,7 +45,7 @@ export interface LanguageTooling {
   serverState: ServerState
 }
 
-/** A fix diffx is allowed to run: a fixed argv, never user input. */
+/** A fix diffloupe is allowed to run: a fixed argv, never user input. */
 interface RunnableFix {
   command: string
   args: string[]
@@ -345,7 +345,7 @@ export async function detectTooling(root: string, lsp: LspManager): Promise<Lang
 }
 
 /**
- * Runs the fix for one check, if it is one diffx may run. The command is
+ * Runs the fix for one check, if it is one diffloupe may run. The command is
  * chosen here from a fixed list; nothing from the request reaches argv.
  */
 export async function runFix(root: string, languageId: string, checkId: string): Promise<{ ok: boolean; output: string }> {

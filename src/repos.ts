@@ -3,12 +3,12 @@ import { homedir } from 'node:os'
 import { findRepoRoot } from './git.js'
 
 export interface Repo {
-  /** URL-facing identifier, unique within one diffx session. */
+  /** URL-facing identifier, unique within one diffloupe session. */
   id: string
   name: string
   /** Absolute path of the work tree root. */
   root: string
-  /** Directory the user pointed diffx at; custom diff args run here. */
+  /** Directory the user pointed diffloupe at; custom diff args run here. */
   cwd: string
 }
 

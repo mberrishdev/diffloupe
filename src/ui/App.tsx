@@ -119,7 +119,7 @@ export function App() {
 interface RepoReviewProps {
   repo: RepoInfo
   multiRepo: boolean
-  /** diffx listens on localhost, so the UI may run setup steps on this machine. */
+  /** diffloupe listens on localhost, so the UI may run setup steps on this machine. */
   canManage: boolean
   title: ReactNode
   settings: Settings

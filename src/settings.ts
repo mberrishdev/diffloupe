@@ -1,8 +1,16 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, cpSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
-export const CONFIG_DIR = join(homedir(), '.config', 'diffx')
+export const CONFIG_DIR = join(homedir(), '.config', 'diffloupe')
+const LEGACY_CONFIG_DIR = join(homedir(), '.config', 'diffx')
+
+// Carry over settings and recent repos saved before the rename from diffx.
+if (!existsSync(CONFIG_DIR) && existsSync(LEGACY_CONFIG_DIR)) {
+  try {
+    cpSync(LEGACY_CONFIG_DIR, CONFIG_DIR, { recursive: true })
+  } catch {}
+}
 const SETTINGS_FILE = join(CONFIG_DIR, 'settings.json')
 
 export interface Settings {

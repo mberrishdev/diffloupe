@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'diffx-sidebar-preferences'
+const STORAGE_KEY = 'diffloupe-sidebar-preferences'
 
 export const SIDEBAR_MIN_SIZE = 200
 export const SIDEBAR_COLLAPSED_SIZE = 40

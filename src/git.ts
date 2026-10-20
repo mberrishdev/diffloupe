@@ -102,7 +102,7 @@ export function getBranchName(root: string): string {
 // (e.g. diff.external = difftastic, color.ui = always).
 const DIFF_FLAGS = ['--no-ext-diff', '--no-color'] as const
 
-// Runs in `cwd` (the directory the user pointed diffx at) rather than the
+// Runs in `cwd` (the directory the user pointed diffloupe at) rather than the
 // repo root, so pathspecs in the custom args resolve the way they would in a shell.
 export function getCustomGitDiff(cwd: string, args: string[]): string {
   return execFileSync('git', ['diff', ...DIFF_FLAGS, ...args], { cwd, encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 })

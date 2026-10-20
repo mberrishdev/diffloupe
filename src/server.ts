@@ -108,7 +108,7 @@ export interface AppOptions {
    * beyond localhost, so remote clients can't open arbitrary repos on this machine.
    */
   canManageRepos: boolean
-  /** Directory diffx was launched from; its child repos are offered as suggestions. */
+  /** Directory diffloupe was launched from; its child repos are offered as suggestions. */
   launchDir: string
   /** Language servers for exact code navigation; text search is used without them. */
   lsp?: LspManager
@@ -304,7 +304,7 @@ export function createApp({ clientDir, repos, customDiffArgs, commentStore, canM
   // fixed commands defined in tooling.ts can run, and only on localhost.
   const runningFixes = new Set<string>()
   app.post('/api/tooling/fix', async (c) => {
-    if (!canManageRepos) return c.json({ error: 'Setup steps can only be run when diffx listens on localhost' }, 403)
+    if (!canManageRepos) return c.json({ error: 'Setup steps can only be run when diffloupe listens on localhost' }, 403)
     if (!c.req.header('Content-Type')?.startsWith('application/json')) {
       return c.json({ error: 'Content-Type must be application/json' }, 415)
     }

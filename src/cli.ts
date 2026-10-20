@@ -23,11 +23,11 @@ const { values, tokens } = parseArgs({
 })
 
 if (values.help) {
-  console.log(`diffx - Local code review tool for git diffs
+  console.log(`diffloupe - Local code review tool for git diffs
 
-Usage: diffx [options] [<repo path>...] [-- <git diff args>]
+Usage: diffloupe [options] [<repo path>...] [-- <git diff args>]
 
-With no paths, diffx reviews the current repository (or, outside any
+With no paths, diffloupe reviews the current repository (or, outside any
 repository, opens a picker). Pass several paths to review them in one
 session. Repos can also be added and removed from the repo menu in the UI,
 which suggests nearby repos, git worktrees and recently used repos.
@@ -42,14 +42,14 @@ Options:
   -h, --help         Show this help message
 
 Examples:
-  diffx                        Review uncommitted changes
-  diffx -- --staged            Review staged changes
-  diffx -- HEAD~3              Review last 3 commits
-  diffx -- main..feature       Compare branches
-  diffx ../api ../web          Review two repositories in one session
-  diffx ../api ../web -- HEAD~1
+  diffloupe                        Review uncommitted changes
+  diffloupe -- --staged            Review staged changes
+  diffloupe -- HEAD~3              Review last 3 commits
+  diffloupe -- main..feature       Compare branches
+  diffloupe ../api ../web          Review two repositories in one session
+  diffloupe ../api ../web -- HEAD~1
                                Same git diff args applied to every repo
-  diffx --host 0.0.0.0         Allow other machines on the LAN to review`)
+  diffloupe --host 0.0.0.0         Allow other machines on the LAN to review`)
   process.exit(0)
 }
 
@@ -81,7 +81,7 @@ try {
   for (const path of repoPaths) repos.add(path)
 } catch (err) {
   console.error(`Error: ${(err as Error).message}`)
-  console.error('To pass git diff arguments, put them after --, e.g. diffx -- HEAD~3')
+  console.error('To pass git diff arguments, put them after --, e.g. diffloupe -- HEAD~3')
   process.exit(1)
 }
 if (repoPaths.length === 0) {
@@ -122,7 +122,7 @@ const { port: actualPort } = await startServer({
 
 const localUrl = `http://${host}:${actualPort}`
 
-console.log(`diffx server running at ${localUrl}`)
+console.log(`diffloupe server running at ${localUrl}`)
 if (repos.list().length === 0) {
   console.log('No repository open yet. Pick one in the browser.')
 } else if (repos.list().length > 1) {

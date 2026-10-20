@@ -83,7 +83,7 @@ function realpath(path: string): string {
 /**
  * Repos the user is likely to want next: worktrees of the open repos, repos
  * from earlier sessions, and sibling repos of the open ones (or, with none
- * open, repos directly inside the directory diffx was launched from).
+ * open, repos directly inside the directory diffloupe was launched from).
  * Already-open repos are excluded. Repos with changes sort first.
  */
 export async function suggestRepos(open: Repo[], launchDir: string, recent: string[]): Promise<RepoSuggestion[]> {
