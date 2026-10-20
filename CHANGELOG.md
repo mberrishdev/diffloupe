@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.2
+
+### Patch Changes
+
+- 5939ad6: Install fewer packages: UI-only libraries are now bundled into the web client instead of being installed as runtime dependencies. Declare Node.js 20 or newer as the supported runtime.
+- 3bf0675: Explain code navigation in the README with a worked example, and expand the package description.
+
 ## 0.0.1
 
 First release of diffloupe, forked from [diffx](https://github.com/wong2/diffx) 0.16.0. For changes before the fork, see the [diffx changelog](https://github.com/wong2/diffx/blob/main/CHANGELOG.md).
