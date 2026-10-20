@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react'
 import type { FileDiffMetadata, DiffLineAnnotation, AnnotationSide } from '@pierre/diffs'
 import type { ReviewComment } from '../../types'
 import type { BinaryFileInfo } from '../hooks/useDiff'
+import type { NavQuery } from '../hooks/useNavigation'
 import { FileDiffCard } from './FileDiffCard'
 import { BinaryFileDiff } from './BinaryFileDiff'
 
@@ -18,6 +19,7 @@ interface DiffViewerProps {
   fileAnnotationsMap: Map<string, DiffLineAnnotation<ReviewComment>[]>
   onAddComment: (filePath: string, side: AnnotationSide, lineNumber: number, lineContent: string, body: string) => void
   onDeleteComment: (id: string) => void
+  onNavigate: (query: NavQuery) => void
 }
 
 const emptyAnnotations: DiffLineAnnotation<ReviewComment>[] = []
@@ -35,6 +37,7 @@ export const DiffViewer = memo(function DiffViewer({
   fileAnnotationsMap,
   onAddComment,
   onDeleteComment,
+  onNavigate,
 }: DiffViewerProps) {
   const sortedFiles = useMemo(() => {
     return [...files].sort((a, b) => {
@@ -96,6 +99,7 @@ export const DiffViewer = memo(function DiffViewer({
             onViewedChange={onViewedChange}
             onAddComment={onAddComment}
             onDeleteComment={onDeleteComment}
+            onNavigate={onNavigate}
           />
         )
       })}

@@ -2,10 +2,13 @@ import { useState, useRef, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { GitBranch, Settings } from 'lucide-react'
 import type { DiffOptions } from '../hooks/useDiff'
+import { NAVIGATION_SHORTCUT } from '../tokenNavigation'
 
 interface ToolbarProps {
   /** Repo name, or the repo switcher when several repos are under review. */
   title: ReactNode
+  /** Status shown after the diff stats, e.g. code navigation readiness. */
+  status?: ReactNode
   branch: string
   fileCount: number
   additions: number
@@ -27,6 +30,7 @@ interface ToolbarProps {
 
 export function Toolbar({
   title,
+  status,
   branch,
   fileCount,
   additions,
@@ -82,6 +86,8 @@ export function Toolbar({
           {additions > 0 && <span className="stat-additions"> +{additions}</span>}
           {deletions > 0 && <span className="stat-deletions"> -{deletions}</span>}
         </span>
+        {status}
+        <span className="toolbar-hint">{NAVIGATION_SHORTCUT} a symbol to find its definition and references</span>
       </div>
       <div className="toolbar-right">
         <div className="toolbar-toggle">

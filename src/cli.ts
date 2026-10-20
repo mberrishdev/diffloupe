@@ -7,6 +7,7 @@ import getPort from 'get-port'
 import { RepoRegistry } from './repos.js'
 import { startServer } from './server.js'
 import { rememberRepos } from './recent.js'
+import { LspManager } from './navigation/lsp.js'
 import { loadSettings } from './settings.js'
 
 const { values, tokens } = parseArgs({
@@ -96,6 +97,9 @@ if (repoPaths.length === 0) {
 }
 rememberRepos(repos.list().map((r) => r.root))
 
+const lsp = new LspManager()
+process.on('exit', () => lsp.killAll())
+
 const port = await getPort(values.port ? { port: parseInt(values.port, 10) } : undefined)
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -113,6 +117,7 @@ const { port: actualPort } = await startServer({
   customDiffArgs,
   canManageRepos,
   launchDir: process.cwd(),
+  lsp,
 })
 
 const localUrl = `http://${host}:${actualPort}`

@@ -7,6 +7,10 @@ import { getGitDiff, getCustomGitDiff, getBranchName, getFileContent, getBlobCon
 import type { Repo, RepoRegistry } from './repos.js'
 import { suggestRepos } from './discover.js'
 import { loadRecentRepos, rememberRepos } from './recent.js'
+import { textSearch } from './navigation/textSearch.js'
+import { LspManager, SERVERS } from './navigation/lsp.js'
+import { detectTooling, runFix } from './navigation/tooling.js'
+import { SYMBOL_PATTERN } from './navigation/types.js'
 import { loadSettings, saveSettings } from './settings.js'
 import { InMemoryCommentStore } from './comments.js'
 import type { CommentStore } from './comments.js'
@@ -106,9 +110,13 @@ export interface AppOptions {
   canManageRepos: boolean
   /** Directory diffx was launched from; its child repos are offered as suggestions. */
   launchDir: string
+  /** Language servers for exact code navigation; text search is used without them. */
+  lsp?: LspManager
 }
 
-export function createApp({ clientDir, repos, customDiffArgs, commentStore, canManageRepos, launchDir }: AppOptions) {
+const MAX_SOURCE_BYTES = 2 * 1024 * 1024
+
+export function createApp({ clientDir, repos, customDiffArgs, commentStore, canManageRepos, launchDir, lsp }: AppOptions) {
   const app = new Hono()
   const isCustomMode = !!customDiffArgs
   const store = commentStore ?? new InMemoryCommentStore()
@@ -167,7 +175,9 @@ export function createApp({ clientDir, repos, customDiffArgs, commentStore, canM
   app.delete('/api/repos/:id', async (c) => {
     if (!canManageRepos) return c.json({ error: 'Repo management is disabled' }, 403)
     const id = c.req.param('id')
-    if (!repos.remove(id)) return c.json({ error: `Unknown repo: ${id}` }, 404)
+    const removed = repos.get(id)
+    if (!removed || !repos.remove(id)) return c.json({ error: `Unknown repo: ${id}` }, 404)
+    lsp?.disposeRoot(removed.root)
     viewedByRepo.delete(id)
     for (const comment of [...(await store.getAll())]) {
       if (comment.repoId === id) await store.remove(comment.id)
@@ -254,6 +264,89 @@ export function createApp({ clientDir, repos, customDiffArgs, commentStore, canM
       return c.json({ error: 'Content unavailable' }, 404)
     }
     return c.json({ old: oldContent, new: newContent })
+  })
+
+  // Code navigation for the symbol at `path:line:column`. `engine=text` answers
+  // instantly with `git grep`; `engine=lsp` asks a language server for exact
+  // results and reports why when it can't (not installed, still loading, ...).
+  app.get('/api/nav', async (c) => {
+    const repo = getRepo(c)
+    if (!repo) return unknownRepo(c)
+    const symbol = c.req.query('symbol') ?? ''
+    if (!SYMBOL_PATTERN.test(symbol)) return c.json({ error: 'Invalid symbol' }, 400)
+    if (c.req.query('engine') === 'lsp') {
+      const path = c.req.query('path')
+      const line = Number(c.req.query('line'))
+      const column = Number(c.req.query('column'))
+      if (!lsp) return c.json({ status: 'unsupported' })
+      if (!path || !isSafePath(path, repo.root) || !(line >= 1) || !(column >= 0)) {
+        return c.json({ error: 'Missing or invalid path, line or column' }, 400)
+      }
+      return c.json(await lsp.navigate(repo.root, path, line, column, symbol))
+    }
+    try {
+      return c.json(await textSearch(repo.root, symbol))
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 500)
+    }
+  })
+
+  // Which languages the repo uses and what exact navigation needs for each
+  // (SDKs, language servers, restored packages), with the fix for each gap.
+  app.get('/api/tooling', async (c) => {
+    const repo = getRepo(c)
+    if (!repo) return unknownRepo(c)
+    if (!lsp) return c.json([])
+    return c.json(await detectTooling(repo.root, lsp))
+  })
+
+  // Runs a setup step from /api/tooling (e.g. installing csharp-ls). Only the
+  // fixed commands defined in tooling.ts can run, and only on localhost.
+  const runningFixes = new Set<string>()
+  app.post('/api/tooling/fix', async (c) => {
+    if (!canManageRepos) return c.json({ error: 'Setup steps can only be run when diffx listens on localhost' }, 403)
+    if (!c.req.header('Content-Type')?.startsWith('application/json')) {
+      return c.json({ error: 'Content-Type must be application/json' }, 415)
+    }
+    const repo = getRepo(c)
+    if (!repo) return unknownRepo(c)
+    const { language, check } = await c.req.json<{ language?: unknown; check?: unknown }>()
+    if (typeof language !== 'string' || typeof check !== 'string') return c.json({ error: 'Missing language or check' }, 400)
+    const key = `${repo.root}\0${language}`
+    if (runningFixes.has(key)) return c.json({ error: 'Another setup step is already running' }, 409)
+    runningFixes.add(key)
+    try {
+      return c.json(await runFix(repo.root, language, check))
+    } finally {
+      runningFixes.delete(key)
+    }
+  })
+
+  // Starts a language server ahead of the first lookup.
+  app.post('/api/tooling/warm', async (c) => {
+    if (!c.req.header('Content-Type')?.startsWith('application/json')) {
+      return c.json({ error: 'Content-Type must be application/json' }, 415)
+    }
+    const repo = getRepo(c)
+    if (!repo) return unknownRepo(c)
+    const { language } = await c.req.json<{ language?: unknown }>()
+    const spec = SERVERS.find((s) => s.id === language)
+    if (!lsp || !spec) return c.json({ error: 'Unknown language' }, 400)
+    // Starting can take a while for large solutions; report progress via /api/tooling.
+    lsp.warm(repo.root, spec).catch(() => {})
+    return c.json(lsp.state(repo.root, spec))
+  })
+
+  // A work tree file's text, for previewing files that aren't in the diff.
+  app.get('/api/source', (c) => {
+    const repo = getRepo(c)
+    if (!repo) return unknownRepo(c)
+    const path = c.req.query('path')
+    if (!path) return c.json({ error: 'Missing path' }, 400)
+    const contents = getWorktreeFileContent(repo.root, path)
+    if (contents == null) return c.json({ error: 'File not found' }, 404)
+    if (contents.length > MAX_SOURCE_BYTES) return c.json({ error: 'File too large to preview' }, 413)
+    return c.json({ path, contents })
   })
 
   app.get('/api/settings', (c) => {

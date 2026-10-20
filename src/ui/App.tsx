@@ -20,6 +20,10 @@ import { CommentTracker } from './components/CommentTracker'
 import { RepoSwitcher } from './components/RepoSwitcher'
 import type { RepoCommentCounts } from './components/RepoSwitcher'
 import { RepoPicker } from './components/RepoPicker'
+import { NavPanel } from './components/NavPanel'
+import { ToolingBanner, ToolingChips, ToolingDialog } from './components/ToolingSetup'
+import { useTooling } from './hooks/useTooling'
+import type { NavQuery } from './hooks/useNavigation'
 import { SidebarStorage } from './sidebarStorage'
 
 function useWindowSize({ factor }: { factor: number }) {
@@ -94,6 +98,7 @@ export function App() {
       key={activeRepo.id}
       repo={activeRepo}
       multiRepo={repos.length > 1}
+      canManage={canManage}
       title={
         <RepoSwitcher
           repos={repos}
@@ -114,12 +119,14 @@ export function App() {
 interface RepoReviewProps {
   repo: RepoInfo
   multiRepo: boolean
+  /** diffx listens on localhost, so the UI may run setup steps on this machine. */
+  canManage: boolean
   title: ReactNode
   settings: Settings
   updateSettings: (patch: Partial<Settings>) => void
 }
 
-function RepoReview({ repo, multiRepo, title, settings, updateSettings }: RepoReviewProps) {
+function RepoReview({ repo, multiRepo, canManage, title, settings, updateSettings }: RepoReviewProps) {
   const { patch, branch, customMode, binaryFiles, tabSizeMap, untrackedFiles, loading, error } = useDiff(repo.id, {
     staged: settings.staged,
     untracked: settings.untracked,
@@ -127,6 +134,16 @@ function RepoReview({ repo, multiRepo, title, settings, updateSettings }: RepoRe
   const { comments, addComment, removeComment, copyAllComments } =
     useComments(repo.id, multiRepo)
   const [activeFile, setActiveFile] = useState<string | null>(null)
+  // Navigation history: the last entry is shown; Back pops it.
+  const [navStack, setNavStack] = useState<NavQuery[]>([])
+  const navQuery = navStack[navStack.length - 1] ?? null
+  const handleNavigate = useCallback((query: NavQuery) => setNavStack((stack) => [...stack, query]), [])
+  const handleNavBack = useCallback(() => setNavStack((stack) => stack.slice(0, -1)), [])
+  const handleNavClose = useCallback(() => setNavStack([]), [])
+  const tooling = useTooling(repo.id)
+  const [setupOpen, setSetupOpen] = useState(false)
+  const openSetup = useCallback(() => setSetupOpen(true), [])
+  const closeSetup = useCallback(() => setSetupOpen(false), [])
   const [sidebar, setSidebar] = useState(() => SidebarStorage.load())
   const maxSidebarWidth = Math.max(SidebarStorage.minSize, useWindowSize({ factor: 0.5 }))
 
@@ -180,6 +197,8 @@ function RepoReview({ repo, multiRepo, title, settings, updateSettings }: RepoRe
   }, [files, fullFiles])
 
   const { viewedFiles, setViewed } = useViewed(repo.id, files)
+
+  const diffFileNames = useMemo(() => new Set(files.map((f) => f.name)), [files])
 
   const diffStats = useMemo(() => {
     if (!patch) return { additions: 0, deletions: 0 }
@@ -265,6 +284,7 @@ function RepoReview({ repo, multiRepo, title, settings, updateSettings }: RepoRe
     <div className="app">
       <Toolbar
         title={title}
+        status={<ToolingChips languages={tooling.languages} onOpen={openSetup} />}
         branch={branch}
         fileCount={files.length}
         additions={diffStats.additions}
@@ -283,6 +303,17 @@ function RepoReview({ repo, multiRepo, title, settings, updateSettings }: RepoRe
         onBrowserChange={(browser) => updateSettings({ browser })}
         onCopyComments={copyAllComments}
       />
+      <ToolingBanner repoRoot={repo.root} languages={tooling.languages} onOpen={openSetup} />
+      {setupOpen && (
+        <ToolingDialog
+          languages={tooling.languages}
+          canRunFixes={canManage}
+          onRunFix={tooling.runFix}
+          onRestartServer={tooling.restartServer}
+          onRecheck={tooling.recheck}
+          onClose={closeSetup}
+        />
+      )}
       <div className="app-body">
         {sidebar.collapsed ? (
           <aside className="sidebar sidebar-collapsed" style={{ width: sidebar.visibleSize() }}>
@@ -320,9 +351,24 @@ function RepoReview({ repo, multiRepo, title, settings, updateSettings }: RepoRe
               fileAnnotationsMap={fileAnnotationsMap}
               onAddComment={addComment}
               onDeleteComment={removeComment}
+              onNavigate={handleNavigate}
             />
           </Virtualizer>
         </main>
+        {navQuery && (
+          <NavPanel
+            key={`${navStack.length}:${navQuery.path}:${navQuery.line}:${navQuery.column}:${navQuery.symbol}`}
+            repoId={repo.id}
+            query={navQuery}
+            canGoBack={navStack.length > 1}
+            diffFiles={diffFileNames}
+            onBack={handleNavBack}
+            onClose={handleNavClose}
+            onNavigate={handleNavigate}
+            onShowInDiff={handleFileClick}
+            onOpenSetup={openSetup}
+          />
+        )}
       </div>
     </div>
   )

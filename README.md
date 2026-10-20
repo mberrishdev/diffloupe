@@ -39,6 +39,29 @@ Examples:
   diffx ../api ../web -- HEAD~1  # git diff args apply to every repository
 ```
 
+### Code navigation
+
+⌘-click (Ctrl+click on Windows/Linux) a symbol in the diff to open the navigation panel, like "Go to Definition" / "Find All References" in VS Code. It lists the symbol's **definitions**, **implementations** (e.g. classes implementing an interface) and **references** (where it is called or used), grouped by file, and previews the selected location. ⌘-click symbols in the preview to keep exploring; the back arrow returns to the previous symbol.
+
+Results come in two stages:
+
+1. **Text matches** appear instantly for any language: a whole-word `git grep` over the work tree, with definitions and implementations recognised by pattern.
+2. **Exact results** replace them when a language server is installed for the file's language. diffx starts it on first use and keeps it running for the session:
+
+| Language | Language server | Install |
+| --- | --- | --- |
+| C# / .NET | csharp-ls | `dotnet tool install --global csharp-ls` |
+| TypeScript / JavaScript | typescript-language-server | `npm install --global typescript-language-server typescript` |
+
+You don't need to remember any of this: when you open a C# or TypeScript repository, diffx checks what exact navigation needs and shows a banner if something is missing. The chip next to the diff stats (e.g. **C# · Setup needed**, **C# · Loading solution…**, **C# · Exact navigation**) opens a setup checklist that covers:
+
+- **C#:** a .NET SDK new enough for csharp-ls and for your projects' target frameworks, any SDK pinned by `global.json`, csharp-ls itself, a solution or project file, and restored NuGet packages
+- **TypeScript/JavaScript:** typescript-language-server, the `typescript` package, and installed dependencies
+
+Each missing item comes with the command to run, and steps that are safe to automate (installing the language server, `dotnet restore`, installing dependencies) have a **Run it for me** button. Once everything is in place, diffx starts the language server in the background so the project is loaded before your first click. Setup steps can only be run from the UI when diffx listens on localhost.
+
+diffx finds `csharp-ls` in `~/.dotnet/tools` and `typescript-language-server` in the repo's `node_modules/.bin`, as well as on your `PATH`. Large .NET solutions can take a while to load; until then the panel shows text matches and upgrades automatically. Symbols on removed lines always use text matches, since those lines no longer exist on disk.
+
 ### Multiple repositories
 
 Review several repos (or git worktrees) in one session, which is handy when coding agents work on them in parallel. Click the repo name in the toolbar to switch repos, see each repo's open comment count, remove a repo, or **Add repository…**. The picker suggests:
@@ -72,6 +95,7 @@ The selected repo is kept in the URL (`?repo=<id>`), so you can open one browser
 - **Viewed tracking** — Mark files as reviewed to track progress
 - **Staged / Untracked toggles** — Choose which changes to include
 - **Custom diff commands** — Pass any `git diff` arguments after `--`
+- **Code navigation** — ⌘/Ctrl-click any symbol to see its definition, implementations and references, with a file preview; exact results when a language server is installed
 - **Multiple repositories** — Add, switch between and remove repos or worktrees from the toolbar, with suggestions for nearby, worktree and recent repos
 - **EditorConfig support** — Respects `.editorconfig` for per-file tab size
 - **Persistent settings** — Your preferences are saved across sessions

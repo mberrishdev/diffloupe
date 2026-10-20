@@ -1,6 +1,8 @@
-import { useState, memo } from 'react'
+import { useState, useMemo, memo } from 'react'
 import { FileDiff } from '@pierre/diffs/react'
-import type { DiffLineAnnotation, FileDiffMetadata, AnnotationSide } from '@pierre/diffs'
+import type { DiffLineAnnotation, FileDiffMetadata, AnnotationSide, DiffTokenEventBaseProps } from '@pierre/diffs'
+import type { NavQuery } from '../hooks/useNavigation'
+import { tokenNavigationHandlers } from '../tokenNavigation'
 import type { ReviewComment } from '../../types'
 import { CommentForm } from './CommentForm'
 import { CommentBubble } from './CommentBubble'
@@ -22,6 +24,7 @@ interface FileDiffCardProps {
   onViewedChange: (filePath: string, viewed: boolean) => void
   onAddComment: (filePath: string, side: AnnotationSide, lineNumber: number, lineContent: string, body: string) => void
   onDeleteComment: (id: string) => void
+  onNavigate: (query: NavQuery) => void
 }
 
 export const FileDiffCard = memo(function FileDiffCard({
@@ -36,8 +39,17 @@ export const FileDiffCard = memo(function FileDiffCard({
   onViewedChange,
   onAddComment,
   onDeleteComment,
+  onNavigate,
 }: FileDiffCardProps) {
   const [pending, setPending] = useState<PendingComment | null>(null)
+
+  const tokenHandlers = useMemo(
+    () =>
+      tokenNavigationHandlers<DiffTokenEventBaseProps>((props, symbol, column) =>
+        onNavigate({ path: filePath, line: props.lineNumber, column, side: props.side, symbol }),
+      ),
+    [filePath, onNavigate],
+  )
 
   const getLineContent = (side: AnnotationSide, lineNumber: number): string => {
     const lines = side === 'additions' ? fileDiff.additionLines : fileDiff.deletionLines
@@ -100,6 +112,9 @@ export const FileDiffCard = memo(function FileDiffCard({
               themeType: 'system',
               overflow: softWrap ? 'wrap' : 'scroll',
               unsafeCSS: `:host { --diffs-tab-size: ${tabSize}; }`,
+              // Tags tokens with their column so symbols can be clicked.
+              useTokenTransformer: true,
+              ...tokenHandlers,
             }}
             lineAnnotations={allAnnotations}
             renderHeaderMetadata={() => (
