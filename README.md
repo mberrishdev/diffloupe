@@ -28,8 +28,12 @@ This starts a local server and opens your browser with a diff review UI.
 diffloupe [options] [<repo-path>...] [-- <git-diff-args>]
 
 Options:
-  -p, --port <port>   Server port (default: 3433)
+  -p, --port <port>   Server port (default: random available port)
+  --host <host>       Host to bind to (default: 127.0.0.1). Use 0.0.0.0 to
+                      expose the server on your local network
   --no-open           Don't auto-open browser
+  -v, --version       Show version number
+  -h, --help          Show help
 
 Examples:
   diffloupe                          # Review working tree changes
@@ -135,6 +139,20 @@ The review workflow uses two commands:
 
 1. **`/diffloupe-start-review`** — Launches the diffloupe server and opens the browser. Review your changes and leave inline comments.
 2. **`/diffloupe-finish-review`** — The agent fetches all comments from the running diffloupe server via API, applies the requested changes, and marks each comment as resolved. The browser UI updates in real time as comments are resolved.
+
+## Development
+
+Requires Node.js 20+ and pnpm (`corepack enable`).
+
+```bash
+pnpm install
+pnpm dev:server    # API server on port 3433
+pnpm dev:client    # Vite dev server for the UI, proxies /api to 3433
+pnpm typecheck
+pnpm build         # Builds the UI and CLI into dist/
+```
+
+To release, add a changeset with `pnpm changeset` and push to `main`. The release workflow opens a version PR; merging it publishes to npm.
 
 ## License
 
