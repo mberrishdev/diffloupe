@@ -4,6 +4,11 @@
 
 A local code review tool designed for the coding agent workflow. Review AI-generated changes in a GitHub PR-like web UI, leave inline comments, then hand them back to your coding agent to fix.
 
+What diffloupe adds on top of diffx:
+
+- **[Code navigation](#code-navigation):** ⌘/Ctrl-click any name in the diff to see its definition, implementations and references, with exact results for C# and TypeScript/JavaScript
+- **[Multiple repositories](#multiple-repositories):** review several repos or git worktrees in one session and switch between them from the toolbar
+
 ![screenshot](https://raw.githubusercontent.com/mberrishdev/diffloupe/main/screenshot.png)
 
 ## Install
@@ -47,26 +52,46 @@ Examples:
 
 ### Code navigation
 
-⌘-click (Ctrl+click on Windows/Linux) a symbol in the diff to open the navigation panel, like "Go to Definition" / "Find All References" in VS Code. It lists the symbol's **definitions**, **implementations** (e.g. classes implementing an interface) and **references** (where it is called or used), grouped by file, and previews the selected location. ⌘-click symbols in the preview to keep exploring; the back arrow returns to the previous symbol.
+A diff only shows the lines that changed. When a change calls a function or uses a type, you often need to see what that function does, or what else depends on it, before you can judge the change. Code navigation lets you jump there without leaving the review, like "Go to Definition" and "Find All References" in VS Code.
+
+**How to use it:** hold ⌘ (Ctrl on Windows/Linux) and click any name in the diff: a function, variable, class, method or type. For example, in this changed line:
+
+```ts
++ const user = await loadUser(id)
+```
+
+⌘-clicking `loadUser` opens a panel with:
+
+- **Definitions:** where `loadUser` is written, e.g. `function loadUser(id) { … }` in `src/users.ts`
+- **Implementations:** for an interface or abstract method, the classes that implement it
+- **References:** every place in the project that calls or uses `loadUser`
+
+Results are grouped by file. Select one to preview the file at that line. ⌘-click names inside the preview to keep exploring, and use the back arrow to return to the previous symbol.
+
+#### Text matches and exact results
 
 Results come in two stages:
 
-1. **Text matches** appear instantly for any language: a whole-word `git grep` over the work tree, with definitions and implementations recognised by pattern.
-2. **Exact results** replace them when a language server is installed for the file's language. diffloupe starts it on first use and keeps it running for the session:
+1. **Text matches** appear instantly, for any language. diffloupe searches the repo for the same whole word and recognises definitions by pattern. This is fast but can include unrelated code that happens to use the same name.
+2. **Exact results** replace them when a language server is installed for the file's language. This is the same engine your editor uses, so you get the real definition and the real callers. diffloupe starts it on first use and keeps it running for the session:
 
 | Language | Language server | Install |
 | --- | --- | --- |
 | C# / .NET | csharp-ls | `dotnet tool install --global csharp-ls` |
 | TypeScript / JavaScript | typescript-language-server | `npm install --global typescript-language-server typescript` |
 
-You don't need to remember any of this: when you open a C# or TypeScript repository, diffloupe checks what exact navigation needs and shows a banner if something is missing. The chip next to the diff stats (e.g. **C# · Setup needed**, **C# · Loading solution…**, **C# · Exact navigation**) opens a setup checklist that covers:
+Other languages use text matches only. Names on removed (red) lines also always use text matches, since those lines no longer exist in the files on disk.
+
+#### Setting up exact results
+
+You don't need to set anything up in advance. When you open a C# or TypeScript repository, diffloupe checks what exact navigation needs and shows a banner if something is missing. A chip next to the diff stats shows the current state, for example **C# · Setup needed**, **C# · Loading solution…** or **C# · Exact navigation**. Click it to open a setup checklist covering:
 
 - **C#:** a .NET SDK new enough for csharp-ls and for your projects' target frameworks, any SDK pinned by `global.json`, csharp-ls itself, a solution or project file, and restored NuGet packages
 - **TypeScript/JavaScript:** typescript-language-server, the `typescript` package, and installed dependencies
 
-Each missing item comes with the command to run, and steps that are safe to automate (installing the language server, `dotnet restore`, installing dependencies) have a **Run it for me** button. Once everything is in place, diffloupe starts the language server in the background so the project is loaded before your first click. Setup steps can only be run from the UI when diffloupe listens on localhost.
+Each missing item shows the command to run. Steps that are safe to automate (installing the language server, `dotnet restore`, installing dependencies) have a **Run it for me** button; this only works when diffloupe listens on localhost, the default. Once everything is in place, diffloupe starts the language server in the background, so the project is loaded before your first click.
 
-diffloupe finds `csharp-ls` in `~/.dotnet/tools` and `typescript-language-server` in the repo's `node_modules/.bin`, as well as on your `PATH`. Large .NET solutions can take a while to load; until then the panel shows text matches and upgrades automatically. Symbols on removed lines always use text matches, since those lines no longer exist on disk.
+diffloupe looks for `csharp-ls` in `~/.dotnet/tools` and `typescript-language-server` in the repo's `node_modules/.bin`, as well as on your `PATH`. Large .NET solutions can take a while to load; until then the panel shows text matches and switches to exact results automatically.
 
 ### Multiple repositories
 
