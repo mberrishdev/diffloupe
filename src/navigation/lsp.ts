@@ -1,8 +1,9 @@
-import { accessSync, constants, readFileSync, realpathSync, statSync } from 'node:fs'
-import { delimiter, extname, isAbsolute, join, relative, resolve } from 'node:path'
+import { readFileSync, realpathSync, statSync } from 'node:fs'
+import { extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { getWorktreeFileContent } from '../git.js'
+import { findExecutable } from './executable.js'
 import { LspClient } from './lspClient.js'
 import { clipLine } from './types.js'
 import type { LspNavResponse, NavLocation } from './types.js'
@@ -55,20 +56,6 @@ export const SERVERS: ServerSpec[] = [
 const REQUEST_TIMEOUT_MS = 60_000
 // After opening a file, how long to give the server to start reporting progress.
 const SETTLE_MS = 400
-
-export function findExecutable(command: string, extraDirs: string[] = []): string | null {
-  const dirs = [...extraDirs, ...(process.env.PATH ?? '').split(delimiter)].filter(Boolean)
-  for (const dir of dirs) {
-    const candidate = join(dir, command)
-    try {
-      accessSync(candidate, constants.X_OK)
-      if (statSync(candidate).isFile()) return candidate
-    } catch {
-      // not here
-    }
-  }
-  return null
-}
 
 interface LspPosition {
   line: number

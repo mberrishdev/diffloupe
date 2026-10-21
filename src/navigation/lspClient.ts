@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { basename } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { spawnable } from './executable.js'
 
 interface PendingRequest {
   resolve: (value: unknown) => void
@@ -37,7 +38,8 @@ export class LspClient {
   initialized = false
 
   constructor(command: string, args: string[], private root: string) {
-    this.proc = spawn(command, args, { cwd: root, stdio: 'pipe', windowsHide: true })
+    const { command: file, shell } = spawnable(command)
+    this.proc = spawn(file, args, { cwd: root, stdio: 'pipe', shell, windowsHide: true })
     this.proc.stdout.on('data', (chunk: Buffer) => this.onData(chunk))
     this.proc.stderr.on('data', (chunk: Buffer) => {
       this.stderrTail = (this.stderrTail + chunk.toString()).slice(-2000)

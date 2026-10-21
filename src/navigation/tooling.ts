@@ -3,7 +3,8 @@ import { promisify } from 'node:util'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
-import { SERVERS, findExecutable } from './lsp.js'
+import { findExecutable, spawnable } from './executable.js'
+import { SERVERS } from './lsp.js'
 import type { LspManager, ServerSpec, ServerState } from './lsp.js'
 
 const execFileAsync = promisify(execFile)
@@ -54,7 +55,8 @@ interface RunnableFix {
 
 async function run(command: string, args: string[], cwd: string): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync(command, args, { cwd, timeout: 15_000, maxBuffer: 10 * 1024 * 1024, windowsHide: true })
+    const { command: file, shell } = spawnable(command)
+    const { stdout } = await execFileAsync(file, args, { cwd, shell, timeout: 15_000, maxBuffer: 10 * 1024 * 1024, windowsHide: true })
     return stdout
   } catch {
     return null
@@ -70,6 +72,7 @@ function findDotnet(): string | null {
   return findExecutable('dotnet', [
     ...(process.env.DOTNET_ROOT ? [process.env.DOTNET_ROOT] : []),
     join(homedir(), '.dotnet'),
+    ...(process.env.ProgramFiles ? [join(process.env.ProgramFiles, 'dotnet')] : []),
     '/usr/local/share/dotnet',
     '/usr/share/dotnet',
     '/opt/homebrew/bin',
@@ -357,7 +360,8 @@ export async function runFix(root: string, languageId: string, checkId: string):
   if (!check || !fix || !check.fix?.runnable) return { ok: false, output: 'This step has to be done by hand.' }
 
   return new Promise((resolve) => {
-    const child = spawn(fix.command, fix.args, { cwd: fix.cwd, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+    const { command: file, shell } = spawnable(fix.command)
+    const child = spawn(file, fix.args, { cwd: fix.cwd, stdio: ['ignore', 'pipe', 'pipe'], shell, windowsHide: true })
     let output = ''
     const append = (chunk: Buffer) => {
       output = (output + chunk.toString()).slice(-8000)
