@@ -1,6 +1,6 @@
 {
   "name": "diffloupe",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Local code review for git diffs in a GitHub PR-like web UI, with code navigation (go to definition, find references) and multi-repo review",
   "type": "module",
   "license": "MIT",
