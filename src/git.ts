@@ -40,7 +40,7 @@ export function getFileContent(root: string, filePath: string, version: 'old' | 
   }
   // old version: try staged first, then HEAD
   try {
-    return execFileSync('git', ['show', `HEAD:${filePath}`], { cwd: root, stdio: 'pipe', maxBuffer: 50 * 1024 * 1024 })
+    return execFileSync('git', ['show', `HEAD:${filePath}`], { cwd: root, stdio: 'pipe', maxBuffer: 50 * 1024 * 1024, windowsHide: true })
   } catch {
     return null
   }
@@ -53,7 +53,7 @@ export function getBlobContent(root: string, oid: string): string | null {
     return null
   }
   try {
-    return execFileSync('git', ['cat-file', 'blob', oid], { cwd: root, encoding: 'utf-8', stdio: 'pipe', maxBuffer: 50 * 1024 * 1024 })
+    return execFileSync('git', ['cat-file', 'blob', oid], { cwd: root, encoding: 'utf-8', stdio: 'pipe', maxBuffer: 50 * 1024 * 1024, windowsHide: true })
   } catch {
     return null
   }
@@ -84,7 +84,7 @@ export function getWorktreeFileContent(root: string, filePath: string): string |
 /** Returns the work tree root containing `dir`, or null if `dir` is not inside one. */
 export function findRepoRoot(dir: string): string | null {
   try {
-    return execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, stdio: 'pipe', encoding: 'utf-8' }).trim() || null
+    return execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, stdio: 'pipe', encoding: 'utf-8', windowsHide: true }).trim() || null
   } catch {
     return null
   }
@@ -92,7 +92,7 @@ export function findRepoRoot(dir: string): string | null {
 
 export function getBranchName(root: string): string {
   try {
-    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, stdio: 'pipe', encoding: 'utf-8' }).trim()
+    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, stdio: 'pipe', encoding: 'utf-8', windowsHide: true }).trim()
   } catch {
     return ''
   }
@@ -105,19 +105,19 @@ const DIFF_FLAGS = ['--no-ext-diff', '--no-color'] as const
 // Runs in `cwd` (the directory the user pointed diffloupe at) rather than the
 // repo root, so pathspecs in the custom args resolve the way they would in a shell.
 export function getCustomGitDiff(cwd: string, args: string[]): string {
-  return execFileSync('git', ['diff', ...DIFF_FLAGS, ...args], { cwd, encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 })
+  return execFileSync('git', ['diff', ...DIFF_FLAGS, ...args], { cwd, encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024, windowsHide: true })
 }
 
 export function getGitDiff(root: string, options: { staged?: boolean; untracked?: boolean } = {}): string {
   const parts: string[] = []
 
   // unstaged changes (always included as the base)
-  const unstaged = execFileSync('git', ['diff', ...DIFF_FLAGS], { cwd: root, encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 })
+  const unstaged = execFileSync('git', ['diff', ...DIFF_FLAGS], { cwd: root, encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024, windowsHide: true })
   if (unstaged) parts.push(unstaged)
 
   // staged changes
   if (options.staged) {
-    const staged = execFileSync('git', ['diff', ...DIFF_FLAGS, '--staged'], { cwd: root, encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024 })
+    const staged = execFileSync('git', ['diff', ...DIFF_FLAGS, '--staged'], { cwd: root, encoding: 'utf-8', maxBuffer: 50 * 1024 * 1024, windowsHide: true })
     if (staged) parts.push(staged)
   }
 
@@ -151,6 +151,7 @@ export function getTabSizeForFiles(root: string, filePaths: string[]): Record<st
 export function getUntrackedFilePaths(root: string): string[] {
   const output = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], {
     cwd: root,
+    windowsHide: true,
     encoding: 'utf-8',
     maxBuffer: 50 * 1024 * 1024,
   }).trim()
@@ -160,6 +161,7 @@ export function getUntrackedFilePaths(root: string): string[] {
 function getUntrackedFilesDiff(root: string): string {
   const output = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], {
     cwd: root,
+    windowsHide: true,
     encoding: 'utf-8',
     maxBuffer: 50 * 1024 * 1024,
   }).trim()

@@ -81,7 +81,7 @@ export async function startServer(port: number, strictPort: boolean): Promise<Se
   const log = openSync(LOG_FILE, 'a')
   const args = [...process.execArgv, process.argv[1], 'serve', '--port', String(port)]
   if (!strictPort) args.push('--any-port')
-  const child = spawn(process.execPath, args, { detached: true, stdio: ['ignore', log, log], cwd: process.cwd() })
+  const child = spawn(process.execPath, args, { detached: true, stdio: ['ignore', log, log], cwd: process.cwd(), windowsHide: true })
   closeSync(log)
   let exitCode: number | null = null
   child.on('exit', (code) => (exitCode = code ?? 1))

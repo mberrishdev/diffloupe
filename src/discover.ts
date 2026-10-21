@@ -22,7 +22,7 @@ const STATUS_CONCURRENCY = 8
 
 async function listWorktrees(root: string): Promise<string[]> {
   try {
-    const { stdout } = await execFileAsync('git', ['worktree', 'list', '--porcelain'], { cwd: root })
+    const { stdout } = await execFileAsync('git', ['worktree', 'list', '--porcelain'], { cwd: root, windowsHide: true })
     return stdout
       .split('\n\n')
       .filter((block) => !/^bare$/m.test(block))
@@ -50,6 +50,7 @@ async function hasChanges(root: string): Promise<boolean> {
   try {
     const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
       cwd: root,
+      windowsHide: true,
       timeout: STATUS_TIMEOUT_MS,
       maxBuffer: 10 * 1024 * 1024,
     })

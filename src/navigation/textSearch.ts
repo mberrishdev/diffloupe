@@ -55,7 +55,7 @@ export async function textSearch(root: string, symbol: string): Promise<NavResul
     ;({ stdout } = await execFileAsync(
       'git',
       ['grep', '-n', '-z', '-I', '-w', '-F', '--untracked', '-e', symbol],
-      { cwd: root, maxBuffer: 50 * 1024 * 1024 },
+      { cwd: root, maxBuffer: 50 * 1024 * 1024, windowsHide: true },
     ))
   } catch (err) {
     // git grep exits 1 when nothing matches.

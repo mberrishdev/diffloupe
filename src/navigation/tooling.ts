@@ -54,7 +54,7 @@ interface RunnableFix {
 
 async function run(command: string, args: string[], cwd: string): Promise<string | null> {
   try {
-    const { stdout } = await execFileAsync(command, args, { cwd, timeout: 15_000, maxBuffer: 10 * 1024 * 1024 })
+    const { stdout } = await execFileAsync(command, args, { cwd, timeout: 15_000, maxBuffer: 10 * 1024 * 1024, windowsHide: true })
     return stdout
   } catch {
     return null

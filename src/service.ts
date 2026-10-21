@@ -45,7 +45,7 @@ function servicePath(): string {
   return [...new Set(dirs)].join(delimiter) || '/usr/bin:/bin'
 }
 
-const run = (command: string, args: string[]) => execFileSync(command, args, { stdio: 'pipe' })
+const run = (command: string, args: string[]) => execFileSync(command, args, { stdio: 'pipe', windowsHide: true })
 const runQuietly = (command: string, args: string[]) => {
   try {
     run(command, args)
